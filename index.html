@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Smart Pickleball System</title>
+<title>Smart Pickleball System (VibeCode 6.4.26.315)</title>
 
 <style>
 body{
@@ -299,7 +299,7 @@ renderAll();
 saveState();
 }
 
-/* ---------------- PAIRING ---------------- */
+/* ---------------- PAIRING (UPDATED ONLY HERE) ---------------- */
 
 function isValidPair(a,b){
 for(let r of pairHistory){
@@ -312,32 +312,41 @@ return true;
 
 function smartPairing(rest){
 
-let pool=[...rest];
-let result=[];
+let pool = [...rest];
 
-while(pool.length>=2){
+// PRIORITIZE LOW-GAME PLAYERS
+pool.sort((a, b) => {
+    let pa = players.find(p => p.id === a);
+    let pb = players.find(p => p.id === b);
+    return (pa?.games || 0) - (pb?.games || 0);
+});
 
-let a=pool[0];
-let found=false;
+let result = [];
 
-for(let i=1;i<pool.length;i++){
-let b=pool[i];
+while(pool.length >= 2){
 
-if(isValidPair(a,b)){
-result.push({players:[a,b]});
-pool.splice(i,1);
-pool.splice(0,1);
-found=true;
-break;
-}
+let a = pool[0];
+let found = false;
+
+for(let i = 1; i < pool.length; i++){
+    let b = pool[i];
+
+    if(isValidPair(a, b)){
+        result.push({players:[a, b]});
+        pool.splice(i, 1);
+        pool.splice(0, 1);
+        found = true;
+        break;
+    }
 }
 
 if(!found){
-let b=pool[1];
-result.push({players:[a,b]});
-pool.splice(1,1);
-pool.splice(0,1);
+    let b = pool[1];
+    result.push({players:[a, b]});
+    pool.splice(1, 1);
+    pool.splice(0, 1);
 }
+
 }
 
 return result;
