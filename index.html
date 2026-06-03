@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Smart Pickleball System (VibeCode 6.4.26.333)</title>
+<title>Smart Pickleball System (VibeCode 6.4.26.340)</title>
 
 <style>
 body{
@@ -586,13 +586,16 @@ let j=Math.floor(Math.random()*(i+1));
 
 function reset(){
 matches=[];
+matchHistory=[];
 players.forEach(p=>{
 p.wins=0;p.losses=0;p.games=0;
 });
 
 selectedPlayers=[];
+pairHistory=[];
 localStorage.removeItem(STORAGE_KEY);
 renderAll();
+saveState();
 }
 
 /* ---------------- MASTER RENDER ---------------- */
