@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Player Match History (VibeCode 6.4.26.333)</title>
+
+<style>
+body{
+    font-family:Arial;
+    padding:20px;
+}
+
+button{
+    margin:5px;
+    padding:6px;
+    cursor:pointer;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    margin-top:15px;
+}
+
+th,td{
+    border:1px solid #ddd;
+    padding:8px;
+    text-align:left;
+}
+
+th{
+    background:#f2f2f2;
+}
+
+.viewBtn{
+    background:#333;
+    color:white;
+    border:none;
+}
+
+.viewBtn.active{
+    background:green;
+}
+</style>
+</head>
+
+<body>
+
+<div id="content">Loading...</div>
+
+<script>
+
+const STORAGE_KEY = "pickleball_state_v1";
+
+function loadState(){
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if(!raw) return null;
+    return JSON.parse(raw);
+}
+
+let state = loadState();
+
+if(!state){
+    document.getElementById("content").innerHTML = "No data found.";
+}
+
+let players = state.players || [];
+let matchHistory = state.matchHistory || [];
+
+let urlParams = new URLSearchParams(window.location.search);
+let playerId = urlParams.get("id");
+
+let player = players.find(p => p.id === playerId);
+
+if(!player){
+    document.getElementById("content").innerHTML = "Player not found.";
+}
+
+let view = "summary"; // default view
+
+/* ---------------- HELPERS ---------------- */
+
+function getMatches(id){
+    return matchHistory.filter(m =>
+        m.teamA.includes(id) || m.teamB.includes(id)
+    );
+}
+
+/* partner stats */
+function buildPartnerStats(id){
+
+let map = {};
+
+matchHistory.forEach(m => {
+
+let isA = m.teamA.includes(id);
+let isB = m.teamB.includes(id);
+
+if(!isA && !isB) return;
+
+let team = isA ? m.teamA : m.teamB;
+let opponents = isA ? m.teamB : m.teamA;
+
+let won = (m.winner === (isA ? "A" : "B"));
+
+/* teammates */
+team.forEach(p => {
+    if(p === id) return;
+
+    if(!map[p]) map[p] = {withWins:0, withLosses:0, vsWins:0, vsLosses:0};
+
+    if(won) map[p].withWins++;
+    else map[p].withLosses++;
+});
+
+/* opponents */
+opponents.forEach(p => {
+    if(!map[p]) map[p] = {withWins:0, withLosses:0, vsWins:0, vsLosses:0};
+
+    if(won) map[p].vsLosses++;
+    else map[p].vsWins++;
+});
+
+});
+
+return map;
+}
+
+/* ---------------- RENDER ---------------- */
+
+function render(){
+
+let html = `
+<h2>${player.name}</h2>
+<p><b>Wins:</b> ${player.wins} | <b>Losses:</b> ${player.losses} | <b>Games:</b> ${player.games}</p>
+
+<button class="viewBtn ${view==='summary'?'active':''}" onclick="setView('summary')">
+Summary
+</button>
+
+<button class="viewBtn ${view==='history'?'active':''}" onclick="setView('history')">
+Full Match History
+</button>
+
+<hr>
+`;
+
+if(view === "history"){
+    html += renderHistory();
+}else{
+    html += renderSummary();
+}
+
+document.getElementById("content").innerHTML = html;
+}
+
+/* ---------------- SUMMARY ---------------- */
+
+function renderSummary(){
+
+let stats = buildPartnerStats(playerId);
+
+let html = `
+<h3>Player vs Player Breakdown</h3>
+
+<table>
+<tr>
+<th>Player</th>
+<th>With (W/L)</th>
+<th>Against (W/L)</th>
+</tr>
+`;
+
+Object.keys(stats).forEach(pid => {
+
+let p = players.find(x => x.id === pid);
+let s = stats[pid];
+
+html += `
+<tr>
+<td>${p?.name || "?"}</td>
+<td>${s.withWins} / ${s.withLosses}</td>
+<td>${s.vsWins} / ${s.vsLosses}</td>
+</tr>
+`;
+});
+
+html += `</table>`;
+
+return html;
+}
+
+/* ---------------- HISTORY ---------------- */
+
+function renderHistory(){
+
+let history = getMatches(playerId);
+
+let html = `<h3>Full Match History</h3>`;
+
+if(history.length === 0){
+    return html + `<p>No matches yet.</p>`;
+}
+
+html += `
+<table>
+<tr>
+<th>Court</th>
+<th>Partner</th>
+<th>Opponents</th>
+<th>Result</th>
+</tr>
+`;
+
+history.forEach(m => {
+
+let isA = m.teamA.includes(playerId);
+
+let team = isA ? m.teamA : m.teamB;
+let opponents = isA ? m.teamB : m.teamA;
+
+let partner = team.find(p => p !== playerId);
+
+let won = (m.winner === (isA ? "A" : "B"));
+
+html += `
+<tr>
+<td>${m.court}</td>
+<td>${players.find(p=>p.id===partner)?.name || "BYE"}</td>
+<td>${opponents.map(id => players.find(p=>p.id===id)?.name).join(" & ")}</td>
+<td>${won ? "🟢 Win" : "🔴 Loss"}</td>
+</tr>
+`;
+
+});
+
+html += `</table>`;
+
+return html;
+}
+
+/* ---------------- VIEW SWITCH ---------------- */
+
+function setView(v){
+view = v;
+render();
+}
+
+render();
+
+</script>
+
+</body>
+</html>
