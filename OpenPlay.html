@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pickleball Open Play System</title>
+
+<style>
+body{
+    font-family:Arial;
+    padding:20px;
+}
+
+.card{
+    border:1px solid #ddd;
+    padding:10px;
+    margin-bottom:15px;
+}
+
+button{
+    margin:3px;
+    padding:6px;
+    border:none;
+    cursor:pointer;
+}
+
+/* PLAYER BUTTONS */
+.playerBtn{
+    background:gray;
+    color:white;
+}
+
+.playerBtn.selected{
+    background:#2e7d32;
+}
+
+.playerBtn.locked{
+    background:#1565c0;
+    opacity:0.6;
+}
+
+/* COURTS */
+.court{
+    border:1px solid #ccc;
+    padding:10px;
+    margin:10px 0;
+}
+
+.winBtn{
+    background:gray;
+    color:white;
+}
+
+.winBtn.active{
+    background:green;
+}
+
+/* TABLE */
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+th,td{
+    border:1px solid #ddd;
+    padding:6px;
+    cursor:pointer;
+}
+
+th{
+    background:#f2f2f2;
+}
+</style>
+</head>
+
+<body>
+
+<h2>🏓 Pickleball Open Play System</h2>
+
+<div class="card">
+
+<input id="playerName"
+placeholder="Enter player name"
+onkeydown="if(event.key==='Enter') addPlayer()">
+
+<button onclick="addPlayer()">Add Player</button>
+
+<div id="players"></div>
+
+<h4>Fixed Teams</h4>
+<div id="fixedTeams"></div>
+
+<button onclick="createTeam()">Create Fixed Team</button>
+
+</div>
+
+<div class="card">
+
+Courts:
+<input type="number" id="courtCount" value="2" min="1">
+
+<button onclick="start()">Start Round</button>
+<button onclick="reset()">Reset</button>
+
+</div>
+
+<div id="courts"></div>
+
+<h3>Leaderboard</h3>
+
+<table>
+<thead>
+<tr>
+<th onclick="sort('name')">Name</th>
+<th onclick="sort('wins')">Wins</th>
+<th onclick="sort('losses')">Losses</th>
+<th onclick="sort('games')">Games</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody id="leader"></tbody>
+</table>
+
+<script>
+
+/* ---------------- STATE ---------------- */
+
+let players=[];
+let fixedTeams=[];
+let selectedPlayers=[];
+let matches=[];
+let sortState={key:"name",asc:true};
+
+/* ---------------- ADD PLAYER ---------------- */
+
+function addPlayer(){
+
+    let name=document.getElementById("playerName").value.trim();
+    if(!name)return;
+
+    players.push({
+        id:crypto.randomUUID(),
+        name,
+        wins:0,
+        losses:0,
+        games:0
+    });
+
+    document.getElementById("playerName").value="";
+    renderPlayers();
+}
+
+/* ---------------- LOCK CHECK ---------------- */
+
+function isLocked(id){
+    return fixedTeams.some(t=>t.includes(id));
+}
+
+/* ---------------- PLAYERS UI ---------------- */
+
+function renderPlayers(){
+
+    document.getElementById("players").innerHTML=
+
+    players.map(p=>{
+
+        let selected = selectedPlayers.includes(p.id);
+        let locked = isLocked(p.id);
+
+        let cls = "playerBtn";
+        if(selected) cls+=" selected";
+        if(locked) cls+=" locked";
+
+        return `
+        <button class="${cls}"
+        onclick="toggle('${p.id}')"
+        ${locked?'disabled':''}>
+        ${p.name}
+        </button>
+
+        <button onclick="edit('${p.id}')">✏️</button>
+        <button onclick="remove('${p.id}')">🗑️</button><br>
+        `;
+    }).join("");
+}
+
+/* ---------------- TOGGLE ---------------- */
+
+function toggle(id){
+
+    if(isLocked(id)) return;
+
+    if(selectedPlayers.includes(id)){
+        selectedPlayers = selectedPlayers.filter(x=>x!==id);
+    }else if(selectedPlayers.length<2){
+        selectedPlayers.push(id);
+    }
+
+    renderPlayers();
+}
+
+/* ---------------- EDIT / REMOVE ---------------- */
+
+function edit(id){
+    let p=players.find(x=>x.id===id);
+    let n=prompt("Edit name",p.name);
+    if(!n)return;
+    p.name=n;
+    renderPlayers();
+    renderFixedTeams();
+}
+
+function remove(id){
+    players=players.filter(p=>p.id!==id);
+    renderPlayers();
+}
+
+/* ---------------- FIXED TEAMS ---------------- */
+
+function createTeam(){
+
+    if(selectedPlayers.length!==2){
+        alert("Select 2 players");
+        return;
+    }
+
+    fixedTeams.push([...selectedPlayers]);
+    selectedPlayers=[];
+
+    renderPlayers();
+    renderFixedTeams();
+}
+
+function renderFixedTeams(){
+
+    document.getElementById("fixedTeams").innerHTML=
+
+    fixedTeams.map((t,i)=>{
+
+        let p1=players.find(p=>p.id===t[0]);
+        let p2=players.find(p=>p.id===t[1]);
+
+        return `
+        ⭐ ${p1?.name || "?"} & ${p2?.name || "?"}
+        <button onclick="removeTeam(${i})">❌</button><br>
+        `;
+    }).join("");
+}
+
+function removeTeam(i){
+    fixedTeams.splice(i,1);
+    renderPlayers();
+    renderFixedTeams();
+}
+
+/* ---------------- START MATCH ---------------- */
+
+function start(){
+
+    let teams=[];
+    let used=new Set();
+
+    // fixed teams
+    fixedTeams.forEach(t=>{
+
+        teams.push({
+            id:crypto.randomUUID(),
+            players:[t[0],t[1]]
+        });
+
+        used.add(t[0]);
+        used.add(t[1]);
+    });
+
+    // rest players
+    let rest=players.map(p=>p.id).filter(id=>!used.has(id));
+    shuffle(rest);
+
+    for(let i=0;i<rest.length;i+=2){
+        if(rest[i+1]){
+            teams.push({
+                id:crypto.randomUUID(),
+                players:[rest[i],rest[i+1]]
+            });
+        }
+    }
+
+    shuffle(teams);
+
+    matches=[];
+    let courts=parseInt(document.getElementById("courtCount").value);
+    let i=0;
+
+    for(let c=1;c<=courts;c++){
+
+        if(i+1>=teams.length)break;
+
+        matches.push({
+            id:crypto.randomUUID(),
+            court:c,
+            teamA:teams[i++],
+            teamB:teams[i++],
+            winner:null,
+            processed:false
+        });
+    }
+
+    renderCourts();
+}
+
+/* ---------------- COURTS ---------------- */
+
+function renderCourts(){
+
+    document.getElementById("courts").innerHTML=
+
+    matches.map(m=>`
+
+    <div class="court">
+
+    <b>Court ${m.court}</b><br><br>
+
+    ${m.teamA.players.map(id=>players.find(p=>p.id===id)?.name).join(" & ")}<br>
+
+    <button class="winBtn ${m.winner==='A'?'active':''}"
+    onclick="win('${m.id}','A')">A Wins</button><br>
+
+    ${m.teamB.players.map(id=>players.find(p=>p.id===id)?.name).join(" & ")}<br>
+
+    <button class="winBtn ${m.winner==='B'?'active':''}"
+    onclick="win('${m.id}','B')">B Wins</button>
+
+    </div>
+
+    `).join("");
+
+    renderLeader();
+}
+
+/* ---------------- WIN (FIXED SAFE COUNT) ---------------- */
+
+function win(id,team){
+
+    let m=matches.find(x=>x.id===id);
+
+    if(!m || m.processed) return;
+
+    m.winner=team;
+    m.processed=true;
+
+    let winners = team==='A'?m.teamA.players:m.teamB.players;
+    let losers  = team==='A'?m.teamB.players:m.teamA.players;
+
+    winners.forEach(pid=>{
+        let p=players.find(x=>x.id===pid);
+        if(p){ p.wins++; p.games++; }
+    });
+
+    losers.forEach(pid=>{
+        let p=players.find(x=>x.id===pid);
+        if(p){ p.losses++; p.games++; }
+    });
+
+    renderCourts();
+}
+
+/* ---------------- STATUS ---------------- */
+
+function getStatus(id){
+
+    for(let m of matches){
+        if(m.teamA.players.includes(id) || m.teamB.players.includes(id)){
+            return "🟢 Playing";
+        }
+    }
+
+    return "🟡 Waiting";
+}
+
+/* ---------------- LEADERBOARD ---------------- */
+
+function renderLeader(){
+
+    let data=[...players];
+
+    let k=sortState.key;
+
+    data.sort((a,b)=>{
+
+        if(typeof a[k]==="string"){
+            return sortState.asc ?
+            a[k].localeCompare(b[k]) :
+            b[k].localeCompare(a[k]);
+        }
+
+        return sortState.asc ? a[k]-b[k] : b[k]-a[k];
+    });
+
+    document.getElementById("leader").innerHTML=
+
+    data.map(p=>`
+        <tr>
+        <td>${p.name}</td>
+        <td>${p.wins}</td>
+        <td>${p.losses}</td>
+        <td>${p.games}</td>
+        <td>${getStatus(p.id)}</td>
+        </tr>
+    `).join("");
+}
+
+/* ---------------- SORT ---------------- */
+
+function sort(key){
+    if(sortState.key===key){
+        sortState.asc=!sortState.asc;
+    }else{
+        sortState.key=key;
+        sortState.asc=true;
+    }
+    renderLeader();
+}
+
+/* ---------------- UTIL ---------------- */
+
+function shuffle(a){
+    for(let i=a.length-1;i>0;i--){
+        let j=Math.floor(Math.random()*(i+1));
+        [a[i],a[j]]=[a[j],a[i]];
+    }
+}
+
+/* ---------------- RESET ---------------- */
+
+function reset(){
+
+    matches=[];
+    players.forEach(p=>{
+        p.wins=0;
+        p.losses=0;
+        p.games=0;
+    });
+
+    selectedPlayers=[];
+    renderPlayers();
+    renderLeader();
+    document.getElementById("courts").innerHTML="";
+}
+
+</script>
+
+</body>
+</html>
