@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Smart Pickleball System</title>
+<title>Smart Pickleball System (VibeCode 6.4.26.745)</title>
 
 <style>
 body{
@@ -78,7 +78,7 @@ th{background:#f2f2f2; cursor:pointer;}
 
 <body>
 
-<h2>🏓 Smart Pickleball System (VibeCode 6.4.26.340)</h2>
+<h2>🏓 Pickleball CourtFlow</h2>
 
 <div class="infoBox">
 • Add players<br>
@@ -358,56 +358,90 @@ return result;
 /* ---------------- START ---------------- */
 
 function start(){
+    let teams=[];
+    let used=new Set();
 
-let teams=[];
-let used=new Set();
+    // 1. Process Fixed Teams safely, calculating their team priority score
+    fixedTeams.forEach(t=>{
+        let p1 = players.find(p => p.id === t[0]);
+        let p2 = players.find(p => p.id === t[1]);
+        if(p1 && p2) {
+            teams.push({
+                id: crypto.randomUUID(),
+                players: [t[0], t[1]],
+                // Track average games played by the team for priority queueing
+                avgGames: ((p1.games || 0) + (p2.games || 0)) / 2
+            });
+            used.add(t[0]);
+            used.add(t[1]);
+        }
+    });
 
-fixedTeams.forEach(t=>{
-teams.push({id:crypto.randomUUID(),players:[t[0],t[1]]});
-used.add(t[0]);used.add(t[1]);
-});
+    // 2. Pair up individual players based on fewest games played
+    let rest = players.map(p=>p.id).filter(id=>!used.has(id));
+    let pairs = smartPairing(rest);
 
-let rest=players.map(p=>p.id).filter(id=>!used.has(id));
+    pairs.forEach(p=>{
+        let p1 = players.find(x => x.id === p.players[0]);
+        let p2 = players.find(x => x.id === p.players[1]);
+        teams.push({
+            id: crypto.randomUUID(),
+            players: p.players,
+            avgGames: ((p1?.games || 0) + (p2?.games || 0)) / 2
+        });
+    });
 
-let pairs=smartPairing(rest);
+    // 3. PRIORITY SORT: Move teams with lowest play-time to the front of the line
+    teams.sort((a, b) => a.avgGames - b.avgGames);
 
-pairs.forEach(p=>{
-teams.push({id:crypto.randomUUID(),players:p.players});
-});
+    // 4. COURT CAP: Slice only the number of teams that can actually fit on the courts
+    let courts = parseInt(document.getElementById("courtCount").value) || 1;
+    let maxTeamsPlaying = courts * 2;
+    let playingTeams = teams.slice(0, maxTeamsPlaying);
 
-shuffle(teams);
+    // If there is an odd number of teams making the cut, drop the last one so everyone has an opponent
+    if (playingTeams.length % 2 !== 0) {
+        playingTeams.pop();
+    }
 
-matches=[];
-let courts=parseInt(document.getElementById("courtCount").value);
-let i=0;
+    // 5. MATCHUP RANDOMIZATION: Shuffle ONLY the playing teams. 
+    // This ensures matchups are random, but benched players are never cheated out of a spot!
+    shuffle(playingTeams);
 
-for(let c=1;c<=courts;c++){
-if(i+1>=teams.length)break;
+    // 6. Populate matches onto active courts
+    matches = [];
+    let courtIndex = 1;
+    for(let i = 0; i < playingTeams.length; i += 2){
+        matches.push({
+            id: crypto.randomUUID(),
+            court: courtIndex++,
+            teamA: playingTeams[i],
+            teamB: playingTeams[i+1],
+            selectedWinner: null,
+            processed: false
+        });
+    }
 
-matches.push({
-id:crypto.randomUUID(),
-court:c,
-teamA:teams[i++],
-teamB:teams[i++],
-selectedWinner:null,
-processed:false
-});
-}
-
-updateHistory(teams);
-renderAll();
-saveState();
+    // 7. Track history ONLY for teams that are physically stepping onto a court
+    updateHistory(playingTeams);
+    
+    renderAll();
+    saveState();
 }
 
 /* ---------------- HISTORY ---------------- */
 
-function updateHistory(teams){
-let round=[];
-teams.forEach(t=>{
-round.push(t.players[0]+"|"+t.players[1]);
-});
-pairHistory.unshift(round);
-if(pairHistory.length>HISTORY_LIMIT) pairHistory.pop();
+function updateHistory(playingTeams){
+    let round = [];
+    playingTeams.forEach(t => {
+        round.push(t.players[0] + "|" + t.players[1]);
+    });
+    
+    // Only push if there was actually active gameplay this round
+    if (round.length > 0) {
+        pairHistory.unshift(round);
+        if(pairHistory.length > HISTORY_LIMIT) pairHistory.pop();
+    }
 }
 
 /* ---------------- COURTS ---------------- */
