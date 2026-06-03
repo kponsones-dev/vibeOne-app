@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Smart Pickleball System (VibeCode 6.4.26.315)</title>
+<title>Smart Pickleball System (VibeCode 6.4.26.333)</title>
 
 <style>
 body{
@@ -141,7 +141,8 @@ function saveState(){
         selectedPlayers,
         matches,
         pairHistory,
-        sortState
+        sortState,
+        matchHistory   // ✅ ADDED ONLY
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
@@ -160,6 +161,8 @@ function loadState(){
         pairHistory = s.pairHistory || [];
         sortState = s.sortState || {key:"name",asc:true};
 
+        matchHistory = s.matchHistory || []; // ✅ ADDED ONLY
+
     }catch(e){
         console.error("Failed loading state", e);
     }
@@ -172,6 +175,7 @@ let fixedTeams=[];
 let selectedPlayers=[];
 let matches=[];
 let pairHistory=[];
+let matchHistory=[]; // ✅ ADDED ONLY
 let HISTORY_LIMIT=3;
 
 let sortState={key:"name",asc:true};
@@ -299,7 +303,7 @@ renderAll();
 saveState();
 }
 
-/* ---------------- PAIRING (UPDATED ONLY HERE) ---------------- */
+/* ---------------- PAIRING (UNCHANGED) ---------------- */
 
 function isValidPair(a,b){
 for(let r of pairHistory){
@@ -314,7 +318,6 @@ function smartPairing(rest){
 
 let pool = [...rest];
 
-// PRIORITIZE LOW-GAME PLAYERS
 pool.sort((a, b) => {
     let pa = players.find(p => p.id === a);
     let pb = players.find(p => p.id === b);
@@ -500,6 +503,16 @@ let p=players.find(x=>x.id===id);
 p.losses++;p.games++;
 });
 
+/* ✅ ONLY ADDITION: SAVE FULL MATCH HISTORY */
+matchHistory.push({
+    id: m.id,
+    court: m.court,
+    teamA: m.teamA.players,
+    teamB: m.teamB.players,
+    winner: m.winner,
+    timestamp: Date.now()
+});
+
 renderAll();
 saveState();
 }
@@ -528,7 +541,7 @@ document.getElementById("leader").innerHTML=
 
 data.map(p=>`
 <tr>
-<td>${p.name}</td>
+<td><a href="player.html?id=${p.id}" target="_blank">${p.name}</a></td>
 <td>${p.wins}</td>
 <td>${p.losses}</td>
 <td>${p.games}</td>
