@@ -2,12 +2,20 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Vibe Code One</title>
+<title>Smart Pickleball System</title>
 
 <style>
 body{
     font-family:Arial;
     padding:20px;
+}
+
+.infoBox{
+    background:#f5f5f5;
+    padding:10px;
+    border-radius:8px;
+    margin-bottom:15px;
+    font-size:14px;
 }
 
 .card{
@@ -16,70 +24,77 @@ body{
     margin-bottom:15px;
 }
 
-button{
-    margin:3px;
-    padding:6px;
-    border:none;
-    cursor:pointer;
+.courtsGrid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(260px, 1fr));
+    gap:12px;
 }
 
-/* PLAYER BUTTONS */
+/* PLAYERS */
 .playerBtn{
     background:gray;
     color:white;
+    padding:6px;
+    margin:3px;
+    border:none;
 }
+.playerBtn.selected{background:#2e7d32;}
+.playerBtn.locked{background:#1565c0; opacity:0.6;}
 
-.playerBtn.selected{
-    background:#2e7d32;
-}
-
-.playerBtn.locked{
-    background:#1565c0;
-    opacity:0.6;
-}
-
-/* COURTS */
+/* COURT */
 .court{
     border:1px solid #ccc;
     padding:10px;
-    margin:10px 0;
+    border-radius:10px;
+}
+.court.done{
+    background:#e8f5e9;
+    border:2px solid #2e7d32;
 }
 
+/* WIN BUTTON */
 .winBtn{
     background:gray;
     color:white;
+    border:none;
+    padding:6px;
+    margin:3px;
 }
-
-.winBtn.active{
+.winBtn.selectedA,
+.winBtn.selectedB{
     background:green;
 }
 
-/* TABLE */
+button{
+    cursor:pointer;
+}
 table{
     width:100%;
     border-collapse:collapse;
 }
-
 th,td{
     border:1px solid #ddd;
     padding:6px;
-    cursor:pointer;
 }
-
-th{
-    background:#f2f2f2;
-}
+th{background:#f2f2f2; cursor:pointer;}
 </style>
 </head>
 
 <body>
 
-<h2>🏓 Pickleball Open Play System</h2>
+<h2>🏓 Smart Pickleball System</h2>
+
+<div class="infoBox">
+• Add players<br>
+• Create fixed teams (optional)<br>
+• Start round → smart pairing<br>
+• Select winner per court → confirm<br>
+• No repeat recent partners<br>
+</div>
 
 <div class="card">
 
-<input id="playerName"
-placeholder="Enter player name"
+<input id="playerName" placeholder="Enter player"
 onkeydown="if(event.key==='Enter') addPlayer()">
 
 <button onclick="addPlayer()">Add Player</button>
@@ -94,13 +109,10 @@ onkeydown="if(event.key==='Enter') addPlayer()">
 </div>
 
 <div class="card">
-
 Courts:
 <input type="number" id="courtCount" value="2" min="1">
-
 <button onclick="start()">Start Round</button>
 <button onclick="reset()">Reset</button>
-
 </div>
 
 <div id="courts"></div>
@@ -130,320 +142,404 @@ let selectedPlayers=[];
 let matches=[];
 let sortState={key:"name",asc:true};
 
-/* ---------------- ADD PLAYER ---------------- */
+let pairHistory=[];
+let HISTORY_LIMIT=3;
+
+/* ---------------- PLAYERS ---------------- */
 
 function addPlayer(){
+let name=document.getElementById("playerName").value.trim();
+if(!name)return;
 
-    let name=document.getElementById("playerName").value.trim();
-    if(!name)return;
+players.push({
+id:crypto.randomUUID(),
+name,
+wins:0,
+losses:0,
+games:0
+});
 
-    players.push({
-        id:crypto.randomUUID(),
-        name,
-        wins:0,
-        losses:0,
-        games:0
-    });
-
-    document.getElementById("playerName").value="";
-    renderPlayers();
+document.getElementById("playerName").value="";
+renderPlayers();
 }
 
-/* ---------------- LOCK CHECK ---------------- */
+/* ---------------- LOCK ---------------- */
 
 function isLocked(id){
-    return fixedTeams.some(t=>t.includes(id));
+return fixedTeams.some(t=>t.includes(id));
 }
 
-/* ---------------- PLAYERS UI ---------------- */
+/* ---------------- RENDER PLAYERS ---------------- */
 
 function renderPlayers(){
 
-    document.getElementById("players").innerHTML=
+document.getElementById("players").innerHTML=
 
-    players.map(p=>{
+players.map(p=>{
 
-        let selected = selectedPlayers.includes(p.id);
-        let locked = isLocked(p.id);
+let selected=selectedPlayers.includes(p.id);
+let locked=isLocked(p.id);
 
-        let cls = "playerBtn";
-        if(selected) cls+=" selected";
-        if(locked) cls+=" locked";
+return `
+<button class="playerBtn ${selected?'selected':''} ${locked?'locked':''}"
+onclick="toggle('${p.id}')"
+${locked?'disabled':''}>
+${p.name}
+</button>
 
-        return `
-        <button class="${cls}"
-        onclick="toggle('${p.id}')"
-        ${locked?'disabled':''}>
-        ${p.name}
-        </button>
+<button onclick="editPlayer('${p.id}')">✏️</button>
+<button onclick="removePlayer('${p.id}')">🗑️</button><br>
+`;
+}).join("");
 
-        <button onclick="edit('${p.id}')">✏️</button>
-        <button onclick="remove('${p.id}')">🗑️</button><br>
-        `;
-    }).join("");
 }
 
-/* ---------------- TOGGLE ---------------- */
+/* ---------------- EDIT / DELETE ---------------- */
+
+function editPlayer(id){
+let p=players.find(x=>x.id===id);
+let n=prompt("Edit name",p.name);
+if(!n)return;
+p.name=n;
+
+renderPlayers();
+renderFixedTeams();
+renderCourts();
+renderLeader();
+}
+
+function removePlayer(id){
+players=players.filter(p=>p.id!==id);
+fixedTeams=fixedTeams.filter(t=>!t.includes(id));
+
+renderPlayers();
+renderFixedTeams();
+renderLeader();
+renderCourts();
+}
+
+/* ---------------- SELECT ---------------- */
 
 function toggle(id){
+if(isLocked(id))return;
 
-    if(isLocked(id)) return;
-
-    if(selectedPlayers.includes(id)){
-        selectedPlayers = selectedPlayers.filter(x=>x!==id);
-    }else if(selectedPlayers.length<2){
-        selectedPlayers.push(id);
-    }
-
-    renderPlayers();
+if(selectedPlayers.includes(id)){
+selectedPlayers=selectedPlayers.filter(x=>x!==id);
+}else if(selectedPlayers.length<2){
+selectedPlayers.push(id);
+}
+renderPlayers();
 }
 
-/* ---------------- EDIT / REMOVE ---------------- */
-
-function edit(id){
-    let p=players.find(x=>x.id===id);
-    let n=prompt("Edit name",p.name);
-    if(!n)return;
-    p.name=n;
-    renderPlayers();
-    renderFixedTeams();
-}
-
-function remove(id){
-    players=players.filter(p=>p.id!==id);
-    renderPlayers();
-}
-
-/* ---------------- FIXED TEAMS ---------------- */
+/* ---------------- FIXED TEAM ---------------- */
 
 function createTeam(){
+if(selectedPlayers.length!==2){
+alert("Select 2 players");
+return;
+}
 
-    if(selectedPlayers.length!==2){
-        alert("Select 2 players");
-        return;
-    }
-
-    fixedTeams.push([...selectedPlayers]);
-    selectedPlayers=[];
-
-    renderPlayers();
-    renderFixedTeams();
+fixedTeams.push([...selectedPlayers]);
+selectedPlayers=[];
+renderPlayers();
+renderFixedTeams();
 }
 
 function renderFixedTeams(){
 
-    document.getElementById("fixedTeams").innerHTML=
+document.getElementById("fixedTeams").innerHTML=
 
-    fixedTeams.map((t,i)=>{
+fixedTeams.map((t,i)=>{
 
-        let p1=players.find(p=>p.id===t[0]);
-        let p2=players.find(p=>p.id===t[1]);
+let p1=players.find(p=>p.id===t[0]);
+let p2=players.find(p=>p.id===t[1]);
 
-        return `
-        ⭐ ${p1?.name || "?"} & ${p2?.name || "?"}
-        <button onclick="removeTeam(${i})">❌</button><br>
-        `;
-    }).join("");
+return `
+⭐ ${p1?.name||"?"} & ${p2?.name||"?"}
+<button onclick="removeTeam(${i})">❌</button><br>
+`;
+}).join("");
+
 }
 
 function removeTeam(i){
-    fixedTeams.splice(i,1);
-    renderPlayers();
-    renderFixedTeams();
+fixedTeams.splice(i,1);
+renderPlayers();
+renderFixedTeams();
 }
 
-/* ---------------- START MATCH ---------------- */
+/* ---------------- SMART PAIRING ---------------- */
+
+function isValidPair(a,b){
+for(let r of pairHistory){
+if(r.includes(a+"|"+b) || r.includes(b+"|"+a)){
+return false;
+}
+}
+return true;
+}
+
+function smartPairing(rest){
+
+let pool=[...rest];
+let result=[];
+
+while(pool.length>=2){
+
+let a=pool[0];
+let found=false;
+
+for(let i=1;i<pool.length;i++){
+let b=pool[i];
+
+if(isValidPair(a,b)){
+result.push({players:[a,b]});
+pool.splice(i,1);
+pool.splice(0,1);
+found=true;
+break;
+}
+}
+
+if(!found){
+let b=pool[1];
+result.push({players:[a,b]});
+pool.splice(1,1);
+pool.splice(0,1);
+}
+}
+
+return result;
+}
+
+/* ---------------- START ---------------- */
 
 function start(){
 
-    let teams=[];
-    let used=new Set();
+let teams=[];
+let used=new Set();
 
-    // fixed teams
-    fixedTeams.forEach(t=>{
+fixedTeams.forEach(t=>{
+teams.push({id:crypto.randomUUID(),players:[t[0],t[1]]});
+used.add(t[0]);used.add(t[1]);
+});
 
-        teams.push({
-            id:crypto.randomUUID(),
-            players:[t[0],t[1]]
-        });
+let rest=players.map(p=>p.id).filter(id=>!used.has(id));
 
-        used.add(t[0]);
-        used.add(t[1]);
-    });
+let pairs=smartPairing(rest);
 
-    // rest players
-    let rest=players.map(p=>p.id).filter(id=>!used.has(id));
-    shuffle(rest);
+pairs.forEach(p=>{
+teams.push({id:crypto.randomUUID(),players:p.players});
+});
 
-    for(let i=0;i<rest.length;i+=2){
-        if(rest[i+1]){
-            teams.push({
-                id:crypto.randomUUID(),
-                players:[rest[i],rest[i+1]]
-            });
-        }
-    }
+shuffle(teams);
 
-    shuffle(teams);
+/* matches */
+matches=[];
+let courts=parseInt(document.getElementById("courtCount").value);
+let i=0;
 
-    matches=[];
-    let courts=parseInt(document.getElementById("courtCount").value);
-    let i=0;
+for(let c=1;c<=courts;c++){
 
-    for(let c=1;c<=courts;c++){
+if(i+1>=teams.length)break;
 
-        if(i+1>=teams.length)break;
+matches.push({
+id:crypto.randomUUID(),
+court:c,
+teamA:teams[i++],
+teamB:teams[i++],
+selectedWinner:null,
+processed:false
+});
+}
 
-        matches.push({
-            id:crypto.randomUUID(),
-            court:c,
-            teamA:teams[i++],
-            teamB:teams[i++],
-            winner:null,
-            processed:false
-        });
-    }
+updateHistory(teams);
+renderCourts();
+}
 
-    renderCourts();
+/* ---------------- HISTORY ---------------- */
+
+function updateHistory(teams){
+let round=[];
+teams.forEach(t=>{
+round.push(t.players[0]+"|"+t.players[1]);
+});
+pairHistory.unshift(round);
+if(pairHistory.length>HISTORY_LIMIT) pairHistory.pop();
 }
 
 /* ---------------- COURTS ---------------- */
 
 function renderCourts(){
 
-    document.getElementById("courts").innerHTML=
+document.getElementById("courts").innerHTML=
 
-    matches.map(m=>`
+`<div class="courtsGrid">
+${matches.map(m=>{
 
-    <div class="court">
+let done=m.processed;
 
-    <b>Court ${m.court}</b><br><br>
+let aSel=m.selectedWinner==='A';
+let bSel=m.selectedWinner==='B';
 
-    ${m.teamA.players.map(id=>players.find(p=>p.id===id)?.name).join(" & ")}<br>
+let teamA=m.teamA.players.map(id=>players.find(p=>p.id===id)?.name).join(" & ");
+let teamB=m.teamB.players.map(id=>players.find(p=>p.id===id)?.name).join(" & ");
 
-    <button class="winBtn ${m.winner==='A'?'active':''}"
-    onclick="win('${m.id}','A')">A Wins</button><br>
+return `
+<div class="court ${done?'done':''}">
 
-    ${m.teamB.players.map(id=>players.find(p=>p.id===id)?.name).join(" & ")}<br>
+<b>Court ${m.court}</b>
 
-    <button class="winBtn ${m.winner==='B'?'active':''}"
-    onclick="win('${m.id}','B')">B Wins</button>
+<hr>
 
-    </div>
+<div>
+${teamA} ${done && m.winner==='A' ? "(Winner)" : ""}
+</div>
 
-    `).join("");
+<button class="winBtn ${aSel?'selectedA':''}"
+onclick="selectWinner('${m.id}','A')"
+${done?'disabled':''}>A Wins</button>
 
-    renderLeader();
+<hr>
+
+<div>
+${teamB} ${done && m.winner==='B' ? "(Winner)" : ""}
+</div>
+
+<button class="winBtn ${bSel?'selectedB':''}"
+onclick="selectWinner('${m.id}','B')"
+${done?'disabled':''}>B Wins</button>
+
+<br><br>
+
+${!done ? `
+<button onclick="confirmWin('${m.id}')"
+${!m.selectedWinner?'disabled':''}>
+Confirm Result
+</button>
+` : ""}
+
+</div>
+`;
+}).join("")}
+</div>`;
+
+renderLeader();
 }
 
-/* ---------------- WIN (FIXED SAFE COUNT) ---------------- */
+/* ---------------- WIN FLOW ---------------- */
 
-function win(id,team){
+function selectWinner(id,team){
+let m=matches.find(x=>x.id===id);
+if(!m||m.processed)return;
 
-    let m=matches.find(x=>x.id===id);
-
-    if(!m || m.processed) return;
-
-    m.winner=team;
-    m.processed=true;
-
-    let winners = team==='A'?m.teamA.players:m.teamB.players;
-    let losers  = team==='A'?m.teamB.players:m.teamA.players;
-
-    winners.forEach(pid=>{
-        let p=players.find(x=>x.id===pid);
-        if(p){ p.wins++; p.games++; }
-    });
-
-    losers.forEach(pid=>{
-        let p=players.find(x=>x.id===pid);
-        if(p){ p.losses++; p.games++; }
-    });
-
-    renderCourts();
+m.selectedWinner=team;
+renderCourts();
 }
 
-/* ---------------- STATUS ---------------- */
+function confirmWin(id){
 
-function getStatus(id){
+let m=matches.find(x=>x.id===id);
+if(!m||m.processed||!m.selectedWinner)return;
 
-    for(let m of matches){
-        if(m.teamA.players.includes(id) || m.teamB.players.includes(id)){
-            return "🟢 Playing";
-        }
-    }
+let team=m.selectedWinner;
 
-    return "🟡 Waiting";
+m.winner=team;
+m.processed=true;
+
+let win=team==='A'?m.teamA.players:m.teamB.players;
+let lose=team==='A'?m.teamB.players:m.teamA.players;
+
+win.forEach(id=>{
+let p=players.find(x=>x.id===id);
+p.wins++;p.games++;
+});
+
+lose.forEach(id=>{
+let p=players.find(x=>x.id===id);
+p.losses++;p.games++;
+});
+
+renderCourts();
 }
 
 /* ---------------- LEADERBOARD ---------------- */
 
 function renderLeader(){
 
-    let data=[...players];
+let data=[...players];
 
-    let k=sortState.key;
+data.sort((a,b)=>{
 
-    data.sort((a,b)=>{
+if(typeof a[sortState.key]==="string"){
+return sortState.asc?
+a[sortState.key].localeCompare(b[sortState.key]):
+b[sortState.key].localeCompare(a[sortState.key]);
+}
 
-        if(typeof a[k]==="string"){
-            return sortState.asc ?
-            a[k].localeCompare(b[k]) :
-            b[k].localeCompare(a[k]);
-        }
+return sortState.asc?
+a[sortState.key]-b[sortState.key]:
+b[sortState.key]-a[sortState.key];
 
-        return sortState.asc ? a[k]-b[k] : b[k]-a[k];
-    });
+});
 
-    document.getElementById("leader").innerHTML=
+document.getElementById("leader").innerHTML=
 
-    data.map(p=>`
-        <tr>
-        <td>${p.name}</td>
-        <td>${p.wins}</td>
-        <td>${p.losses}</td>
-        <td>${p.games}</td>
-        <td>${getStatus(p.id)}</td>
-        </tr>
-    `).join("");
+data.map(p=>`
+<tr>
+<td>${p.name}</td>
+<td>${p.wins}</td>
+<td>${p.losses}</td>
+<td>${p.games}</td>
+<td>${getStatus(p.id)}</td>
+</tr>
+`).join("");
+
+}
+
+function getStatus(id){
+for(let m of matches){
+if(m.teamA.players.includes(id)||m.teamB.players.includes(id)){
+return "🟢 Playing";
+}
+}
+return "🟡 Waiting";
 }
 
 /* ---------------- SORT ---------------- */
 
-function sort(key){
-    if(sortState.key===key){
-        sortState.asc=!sortState.asc;
-    }else{
-        sortState.key=key;
-        sortState.asc=true;
-    }
-    renderLeader();
+function sort(k){
+if(sortState.key===k){
+sortState.asc=!sortState.asc;
+}else{
+sortState.key=k;
+sortState.asc=true;
+}
+renderLeader();
 }
 
 /* ---------------- UTIL ---------------- */
 
 function shuffle(a){
-    for(let i=a.length-1;i>0;i--){
-        let j=Math.floor(Math.random()*(i+1));
-        [a[i],a[j]]=[a[j],a[i]];
-    }
+for(let i=a.length-1;i>0;i--){
+let j=Math.floor(Math.random()*(i+1));
+[a[i],a[j]]=[a[j],a[i]];
+}
 }
 
 /* ---------------- RESET ---------------- */
 
 function reset(){
+matches=[];
+players.forEach(p=>{
+p.wins=0;p.losses=0;p.games=0;
+});
 
-    matches=[];
-    players.forEach(p=>{
-        p.wins=0;
-        p.losses=0;
-        p.games=0;
-    });
-
-    selectedPlayers=[];
-    renderPlayers();
-    renderLeader();
-    document.getElementById("courts").innerHTML="";
+selectedPlayers=[];
+renderPlayers();
+renderFixedTeams();
+renderLeader();
+document.getElementById("courts").innerHTML="";
 }
 
 </script>
