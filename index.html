@@ -30,7 +30,6 @@ body{
     gap:12px;
 }
 
-/* PLAYERS */
 .playerBtn{
     background:gray;
     color:white;
@@ -41,7 +40,6 @@ body{
 .playerBtn.selected{background:#2e7d32;}
 .playerBtn.locked{background:#1565c0; opacity:0.6;}
 
-/* COURT */
 .court{
     border:1px solid #ccc;
     padding:10px;
@@ -52,7 +50,6 @@ body{
     border:2px solid #2e7d32;
 }
 
-/* WIN BUTTON */
 .winBtn{
     background:gray;
     color:white;
@@ -65,9 +62,8 @@ body{
     background:green;
 }
 
-button{
-    cursor:pointer;
-}
+button{cursor:pointer;}
+
 table{
     width:100%;
     border-collapse:collapse;
@@ -134,16 +130,55 @@ Courts:
 
 <script>
 
+/* ---------------- STORAGE ---------------- */
+
+const STORAGE_KEY = "pickleball_state_v1";
+
+function saveState(){
+    const state = {
+        players,
+        fixedTeams,
+        selectedPlayers,
+        matches,
+        pairHistory,
+        sortState
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function loadState(){
+    try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return;
+
+        const s = JSON.parse(raw);
+
+        players = s.players || [];
+        fixedTeams = s.fixedTeams || [];
+        selectedPlayers = s.selectedPlayers || [];
+        matches = s.matches || [];
+        pairHistory = s.pairHistory || [];
+        sortState = s.sortState || {key:"name",asc:true};
+
+    }catch(e){
+        console.error("Failed loading state", e);
+    }
+}
+
 /* ---------------- STATE ---------------- */
 
 let players=[];
 let fixedTeams=[];
 let selectedPlayers=[];
 let matches=[];
-let sortState={key:"name",asc:true};
-
 let pairHistory=[];
 let HISTORY_LIMIT=3;
+
+let sortState={key:"name",asc:true};
+
+/* ---------------- INIT ---------------- */
+
+loadState();
 
 /* ---------------- PLAYERS ---------------- */
 
@@ -160,7 +195,8 @@ games:0
 });
 
 document.getElementById("playerName").value="";
-renderPlayers();
+renderAll();
+saveState();
 }
 
 /* ---------------- LOCK ---------------- */
@@ -201,21 +237,15 @@ let p=players.find(x=>x.id===id);
 let n=prompt("Edit name",p.name);
 if(!n)return;
 p.name=n;
-
-renderPlayers();
-renderFixedTeams();
-renderCourts();
-renderLeader();
+renderAll();
+saveState();
 }
 
 function removePlayer(id){
 players=players.filter(p=>p.id!==id);
 fixedTeams=fixedTeams.filter(t=>!t.includes(id));
-
-renderPlayers();
-renderFixedTeams();
-renderLeader();
-renderCourts();
+renderAll();
+saveState();
 }
 
 /* ---------------- SELECT ---------------- */
@@ -229,6 +259,7 @@ selectedPlayers=selectedPlayers.filter(x=>x!==id);
 selectedPlayers.push(id);
 }
 renderPlayers();
+saveState();
 }
 
 /* ---------------- FIXED TEAM ---------------- */
@@ -241,8 +272,8 @@ return;
 
 fixedTeams.push([...selectedPlayers]);
 selectedPlayers=[];
-renderPlayers();
-renderFixedTeams();
+renderAll();
+saveState();
 }
 
 function renderFixedTeams(){
@@ -264,11 +295,11 @@ return `
 
 function removeTeam(i){
 fixedTeams.splice(i,1);
-renderPlayers();
-renderFixedTeams();
+renderAll();
+saveState();
 }
 
-/* ---------------- SMART PAIRING ---------------- */
+/* ---------------- PAIRING ---------------- */
 
 function isValidPair(a,b){
 for(let r of pairHistory){
@@ -334,13 +365,11 @@ teams.push({id:crypto.randomUUID(),players:p.players});
 
 shuffle(teams);
 
-/* matches */
 matches=[];
 let courts=parseInt(document.getElementById("courtCount").value);
 let i=0;
 
 for(let c=1;c<=courts;c++){
-
 if(i+1>=teams.length)break;
 
 matches.push({
@@ -354,7 +383,8 @@ processed:false
 }
 
 updateHistory(teams);
-renderCourts();
+renderAll();
+saveState();
 }
 
 /* ---------------- HISTORY ---------------- */
@@ -434,7 +464,8 @@ let m=matches.find(x=>x.id===id);
 if(!m||m.processed)return;
 
 m.selectedWinner=team;
-renderCourts();
+renderAll();
+saveState();
 }
 
 function confirmWin(id){
@@ -460,7 +491,8 @@ let p=players.find(x=>x.id===id);
 p.losses++;p.games++;
 });
 
-renderCourts();
+renderAll();
+saveState();
 }
 
 /* ---------------- LEADERBOARD ---------------- */
@@ -516,6 +548,7 @@ sortState.key=k;
 sortState.asc=true;
 }
 renderLeader();
+saveState();
 }
 
 /* ---------------- UTIL ---------------- */
@@ -536,11 +569,20 @@ p.wins=0;p.losses=0;p.games=0;
 });
 
 selectedPlayers=[];
+localStorage.removeItem(STORAGE_KEY);
+renderAll();
+}
+
+/* ---------------- MASTER RENDER ---------------- */
+
+function renderAll(){
 renderPlayers();
 renderFixedTeams();
+renderCourts();
 renderLeader();
-document.getElementById("courts").innerHTML="";
 }
+
+renderAll();
 
 </script>
 
