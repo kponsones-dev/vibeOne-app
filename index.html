@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>KitchenSync - Smart Pickleball System (v6.4.2026.935)</title>
+<title>KitchenSync - Smart Pickleball System</title>
 
 <style>
 /* Universal Box Sizing to prevent width overflow */
@@ -592,9 +592,21 @@ function startMatch(courtSlotId) {
 function updateSingleMatchHistory(playingTeams){
     let round=[];
     playingTeams.forEach(t=>{ round.push(t.players[0]+"|"+t.players[1]); });
+    
     if (round.length > 0) {
         pairHistory.unshift(round);
-        if(pairHistory.length > HISTORY_LIMIT) pairHistory.pop();
+        
+        // DYNAMIC MEMORY LIMIT
+        // Scales based on registered players to ensure perfect rotation size!
+        let maxUniquePairs = Math.ceil((players.length * players.length) / 2);
+        
+        // Use a minimum of 5 just to be safe if testing with very small groups
+        let dynamicLimit = Math.max(5, maxUniquePairs);
+        
+        // Trim the history array if it gets longer than our dynamic limit
+        if(pairHistory.length > dynamicLimit) {
+            pairHistory.length = dynamicLimit; 
+        }
     }
 }
 
