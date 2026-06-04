@@ -2,55 +2,116 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Player Match History (VibeCode 6.4.26.333)</title>
+<title>Player Profile & Analytics</title>
 
 <style>
 body{
-    font-family:Arial;
-    padding:20px;
+    font-family: Arial, sans-serif;
+    padding: 20px;
+    background: #fdfdfd;
+    color: #333;
 }
 
+.card{
+    border: 1px solid #ddd;
+    padding: 20px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Mini Stats Dashboard Layout */
+.statsGrid {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 15px 0;
+}
+
+.statBox {
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    padding: 12px 18px;
+    border-radius: 6px;
+    text-align: center;
+    min-width: 90px;
+    flex: 1;
+}
+
+.statBox .label {
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #666;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+.statBox .value {
+    font-size: 22px;
+    font-weight: bold;
+    display: block;
+    margin-top: 4px;
+}
+
+/* Navigation & Utility Buttons */
 button{
-    margin:5px;
-    padding:6px;
-    cursor:pointer;
+    cursor: pointer;
+    padding: 8px 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #f5f5f5;
+    font-weight: bold;
+    margin-right: 5px;
+    transition: background 0.2s;
+}
+button:hover{ background: #e0e0e0; }
+
+.viewBtn.active{
+    background: #2e7d32;
+    color: white;
+    border-color: #1b5e20;
 }
 
+.backBtn {
+    background: #333;
+    color: white;
+    border: none;
+    float: right;
+}
+.backBtn:hover { background: #000; }
+
+/* Tables */
 table{
-    width:100%;
-    border-collapse:collapse;
-    margin-top:15px;
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    margin-top: 15px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
 }
 
 th,td{
-    border:1px solid #ddd;
-    padding:8px;
-    text-align:left;
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: left;
 }
 
 th{
-    background:#f2f2f2;
+    background: #f2f2f2;
+    font-weight: bold;
 }
 
-.viewBtn{
-    background:#333;
-    color:white;
-    border:none;
-}
-
-.viewBtn.active{
-    background:green;
-}
+tr:nth-child(even) { background: #fafafa; }
 </style>
 </head>
 
 <body>
 
-<div id="content">Loading...</div>
+<div id="content">Loading Player Profile Data...</div>
 
 <script>
-
-const STORAGE_KEY = "pickleball_state_v1";
+// --- FIX: Updated to match the main app's storage key ---
+const STORAGE_KEY = "pickleball_state_v7";
 
 function loadState(){
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -61,7 +122,7 @@ function loadState(){
 let state = loadState();
 
 if(!state){
-    document.getElementById("content").innerHTML = "No data found.";
+    document.getElementById("content").innerHTML = `<div class="card"><h3>No system data found.</h3><p>Please log matches in KitchenSync first.</p></div>`;
 }
 
 let players = state.players || [];
@@ -72,13 +133,13 @@ let playerId = urlParams.get("id");
 
 let player = players.find(p => p.id === playerId);
 
-if(!player){
-    document.getElementById("content").innerHTML = "Player not found.";
+if(!player && state){
+    document.getElementById("content").innerHTML = `<div class="card"><h3>Player profile not found.</h3><p>This player may have been removed from the system.</p></div>`;
 }
 
-let view = "summary"; // default view
+let view = "summary"; // Default tab view
 
-/* ---------------- HELPERS ---------------- */
+/* ---------------- DATA PROCESSING HELPERS ---------------- */
 
 function getMatches(id){
     return matchHistory.filter(m =>
@@ -86,168 +147,194 @@ function getMatches(id){
     );
 }
 
-/* partner stats */
 function buildPartnerStats(id){
+    let map = {};
 
-let map = {};
+    matchHistory.forEach(m => {
+        let isA = m.teamA.includes(id);
+        let isB = m.teamB.includes(id);
 
-matchHistory.forEach(m => {
+        if(!isA && !isB) return;
 
-let isA = m.teamA.includes(id);
-let isB = m.teamB.includes(id);
+        let team = isA ? m.teamA : m.teamB;
+        let opponents = isA ? m.teamB : m.teamA;
+        let won = (m.winner === (isA ? "A" : "B"));
 
-if(!isA && !isB) return;
+        /* Track Teammate Stats */
+        team.forEach(p => {
+            if(p === id) return;
+            if(!map[p]) map[p] = {withWins:0, withLosses:0, vsWins:0, vsLosses:0};
+            if(won) map[p].withWins++; else map[p].withLosses++;
+        });
 
-let team = isA ? m.teamA : m.teamB;
-let opponents = isA ? m.teamB : m.teamA;
+        /* Track Opponent Stats */
+        opponents.forEach(p => {
+            if(!map[p]) map[p] = {withWins:0, withLosses:0, vsWins:0, vsLosses:0};
+            if(won) map[p].vsLosses++; else map[p].vsWins++;
+        });
+    });
 
-let won = (m.winner === (isA ? "A" : "B"));
-
-/* teammates */
-team.forEach(p => {
-    if(p === id) return;
-
-    if(!map[p]) map[p] = {withWins:0, withLosses:0, vsWins:0, vsLosses:0};
-
-    if(won) map[p].withWins++;
-    else map[p].withLosses++;
-});
-
-/* opponents */
-opponents.forEach(p => {
-    if(!map[p]) map[p] = {withWins:0, withLosses:0, vsWins:0, vsLosses:0};
-
-    if(won) map[p].vsLosses++;
-    else map[p].vsWins++;
-});
-
-});
-
-return map;
+    return map;
 }
 
-/* ---------------- RENDER ---------------- */
+/* ---------------- DOM RENDERING ---------------- */
 
 function render(){
+    if(!player) return;
 
-let html = `
-<h2>${player.name}</h2>
-<p><b>Wins:</b> ${player.wins} | <b>Losses:</b> ${player.losses} | <b>Games:</b> ${player.games}</p>
+    let pd = player.pointDiff || 0;
+    let pdColor = pd > 0 ? "green" : (pd < 0 ? "red" : "#333");
+    let pdSign = pd > 0 ? "+" : "";
 
-<button class="viewBtn ${view==='summary'?'active':''}" onclick="setView('summary')">
-Summary
-</button>
+    let html = `
+    <div class="card" style="border-left: 6px solid #2e7d32;">
+        <button class="backBtn" onclick="window.close()">Close Profile</button>
+        <h2 style="margin-top: 0; margin-bottom: 5px;">👤 ${player.name}</h2>
+        <span style="color: #666; font-size: 13px;">KitchenSync Historical Performance Card</span>
+        
+        <div class="statsGrid">
+            <div class="statBox">
+                <span class="label">Wins</span>
+                <span class="value" style="color: green;">${player.wins}</span>
+            </div>
+            <div class="statBox">
+                <span class="label">Losses</span>
+                <span class="value" style="color: red;">${player.losses}</span>
+            </div>
+            <div class="statBox">
+                <span class="label">Total Games</span>
+                <span class="value">${player.games}</span>
+            </div>
+            <div class="statBox">
+                <span class="label">Points For (PF)</span>
+                <span class="value" style="color: #1565c0;">${player.pointsScored || 0}</span>
+            </div>
+            <div class="statBox">
+                <span class="label">Points Against (PA)</span>
+                <span class="value" style="color: #e65100;">${player.pointsConceded || 0}</span>
+            </div>
+            <div class="statBox" style="background: ${pd >= 0 ? '#e8f5e9':'#ffebee'}; border-color: ${pd >= 0 ? '#c8e6c9':'#ffcdd2'};">
+                <span class="label">Differential (PD)</span>
+                <span class="value" style="color: ${pdColor};">${pdSign}${pd}</span>
+            </div>
+        </div>
 
-<button class="viewBtn ${view==='history'?'active':''}" onclick="setView('history')">
-Full Match History
-</button>
+        <div style="margin-top: 20px;">
+            <button class="viewBtn ${view==='summary'?'active':''}" onclick="setView('summary')">
+                🤝 Synergy Summary
+            </button>
+            <button class="viewBtn ${view==='history'?'active':''}" onclick="setView('history')">
+                📜 Full Match History
+            </button>
+        </div>
+    </div>
+    `;
 
-<hr>
-`;
+    if(view === "history"){
+        html += renderHistory();
+    } else {
+        html += renderSummary();
+    }
 
-if(view === "history"){
-    html += renderHistory();
-}else{
-    html += renderSummary();
+    document.getElementById("content").innerHTML = html;
 }
 
-document.getElementById("content").innerHTML = html;
-}
-
-/* ---------------- SUMMARY ---------------- */
+/* ---------------- TAB 1: SYNERGY SUMMARY ---------------- */
 
 function renderSummary(){
+    let stats = buildPartnerStats(playerId);
+    let html = `
+    <div class="card">
+        <h3>Dynamic Head-to-Head Matrix</h3>
+        <p style="font-size: 13px; color: #666; margin-top: -5px;">Evaluates how this player performs alongside or standing across from others.</p>
+        <table>
+        <tr>
+            <th>Opponent / Teammate</th>
+            <th>Record As Partner (W / L)</th>
+            <th>Record As Opponent (W / L)</th>
+        </tr>
+    `;
 
-let stats = buildPartnerStats(playerId);
+    let keys = Object.keys(stats);
+    if(keys.length === 0) {
+        return html + `<tr><td colspan="3" style="text-align:center; color:#777; padding: 20px;">No match interactions calculated yet. Start confirming games!</td></tr></table></div>`;
+    }
 
-let html = `
-<h3>Player vs Player Breakdown</h3>
+    keys.forEach(pid => {
+        let p = players.find(x => x.id === pid);
+        let s = stats[pid];
 
-<table>
-<tr>
-<th>Player</th>
-<th>With (W/L)</th>
-<th>Against (W/L)</th>
-</tr>
-`;
+        html += `
+        <tr>
+            <td><strong>${p?.name || "Deleted Player"}</strong></td>
+            <td><span style="color:green; font-weight:bold;">${s.withWins}W</span> – <span style="color:red;">${s.withLosses}L</span></td>
+            <td><span style="color:green; font-weight:bold;">${s.vsWins}W</span> – <span style="color:red;">${s.vsLosses}L</span></td>
+        </tr>
+        `;
+    });
 
-Object.keys(stats).forEach(pid => {
-
-let p = players.find(x => x.id === pid);
-let s = stats[pid];
-
-html += `
-<tr>
-<td>${p?.name || "?"}</td>
-<td>${s.withWins} / ${s.withLosses}</td>
-<td>${s.vsWins} / ${s.vsLosses}</td>
-</tr>
-`;
-});
-
-html += `</table>`;
-
-return html;
+    html += `</table></div>`;
+    return html;
 }
 
-/* ---------------- HISTORY ---------------- */
+/* ---------------- TAB 2: FULL MATCH HISTORY ---------------- */
 
 function renderHistory(){
+    let history = getMatches(playerId);
+    let html = `
+    <div class="card">
+        <h3>Game Performance Log</h3>`;
 
-let history = getMatches(playerId);
+    if(history.length === 0){
+        return html + `<p style="color:#777;">No matches on record for this specific player context.</p></div>`;
+    }
 
-let html = `<h3>Full Match History</h3>`;
+    html += `
+    <table>
+    <tr>
+        <th>Court Location</th>
+        <th>Partner Assigned</th>
+        <th>Opposing Side</th>
+        <th>Match Result</th>
+        <th>Game Score</th>
+    </tr>
+    `;
 
-if(history.length === 0){
-    return html + `<p>No matches yet.</p>`;
+    history.forEach(m => {
+        let isA = m.teamA.includes(playerId);
+        let team = isA ? m.teamA : m.teamB;
+        let opponents = isA ? m.teamB : m.teamA;
+        let partner = team.find(p => p !== playerId);
+        let won = (m.winner === (isA ? "A" : "B"));
+
+        let myScore = isA ? (m.scoreA ?? 0) : (m.scoreB ?? 0);
+        let oppScore = isA ? (m.scoreB ?? 0) : (m.scoreA ?? 0);
+
+        html += `
+        <tr>
+            <td>Court ${m.court}</td>
+            <td><b>${players.find(p=>p.id===partner)?.name || "Solo / Ghost"}</b></td>
+            <td>${opponents.map(id => players.find(p=>p.id===id)?.name || "Unknown").join(" & ")}</td>
+            <td>
+                ${won ? "<span style='color:green; font-weight:bold;'>🟢 Win</span>" : "<span style='color:red; font-weight:bold;'>🔴 Loss</span>"}
+            </td>
+            <td><b>${myScore}</b> – ${oppScore}</td>
+        </tr>
+        `;
+    });
+
+    html += `</table></div>`;
+    return html;
 }
 
-html += `
-<table>
-<tr>
-<th>Court</th>
-<th>Partner</th>
-<th>Opponents</th>
-<th>Result</th>
-</tr>
-`;
-
-history.forEach(m => {
-
-let isA = m.teamA.includes(playerId);
-
-let team = isA ? m.teamA : m.teamB;
-let opponents = isA ? m.teamB : m.teamA;
-
-let partner = team.find(p => p !== playerId);
-
-let won = (m.winner === (isA ? "A" : "B"));
-
-html += `
-<tr>
-<td>${m.court}</td>
-<td>${players.find(p=>p.id===partner)?.name || "BYE"}</td>
-<td>${opponents.map(id => players.find(p=>p.id===id)?.name).join(" & ")}</td>
-<td>${won ? "🟢 Win" : "🔴 Loss"}</td>
-</tr>
-`;
-
-});
-
-html += `</table>`;
-
-return html;
-}
-
-/* ---------------- VIEW SWITCH ---------------- */
+/* ---------------- VIEW TABS CONTROL ---------------- */
 
 function setView(v){
-view = v;
-render();
+    view = v;
+    render();
 }
 
 render();
-
 </script>
 
 </body>
