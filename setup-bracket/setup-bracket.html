@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>KitchenSync - Infinite Hybrid Pool Matchmaking</title>
+
+<style>
+* { box-sizing: border-box; }
+
+body {
+    font-family: Arial, sans-serif;
+    padding: 15px;
+    background: #fdfdfd;
+    color: #333;
+    margin: 0;
+}
+
+h2, h3, h4 { margin-top: 0; }
+
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.infoBox {
+    background: #f5f5f5;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    font-size: 14px;
+    border-left: 4px solid #009688;
+    line-height: 1.6;
+}
+
+.card {
+    border: 1px solid #ddd;
+    padding: 15px;
+    border-radius: 8px;
+    margin-bottom: 15px;
+    background: white;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+.input-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.input-group input, .input-group select {
+    flex: 1;
+    min-width: 150px;
+    padding: 8px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: white;
+}
+
+.courtsGrid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+}
+
+.playerBtn {
+    padding: 8px 12px;
+    margin: 4px 2px;
+    border: none;
+    border-radius: 4px;
+    font-weight: bold;
+    font-size: 14px;
+    color: white;
+    background: #009688;
+}
+.playerBtn.paused { background: #9e9e9e; opacity: 0.8; }
+
+.player-controls {
+    display: inline-block;
+    margin-bottom: 6px;
+    background: #f1f1f1;
+    padding: 4px;
+    border-radius: 6px;
+    margin-right: 4px;
+}
+
+.court {
+    border: 1px solid #ccc;
+    padding: 15px;
+    border-radius: 10px;
+    background: #fff;
+    transition: all 0.3s ease;
+}
+.court.vacant {
+    background: #fafafa;
+    border: 2px dashed #bbb;
+    text-align: center;
+    padding: 30px 15px;
+}
+
+.score-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+.scoreInput {
+    width: 60px;
+    padding: 8px;
+    font-size: 16px;
+    text-align: center;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.queueBadge {
+    display: inline-block;
+    background: white;
+    border: 1px solid #ccc;
+    color: #333;
+    padding: 10px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    margin: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    min-width: 200px;
+    vertical-align: top;
+}
+
+.pool-tag {
+    display: inline-block;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: bold;
+    margin-top: 4px;
+}
+.pool-winner { background: #e8f5e9; color: #2e7d32; }
+.pool-loser { background: #ffebee; color: #c62828; }
+.pool-neutral { background: #e3f2fd; color: #1565c0; }
+
+button {
+    cursor: pointer;
+    padding: 8px 14px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background: #f5f5f5;
+    font-weight: bold;
+    font-size: 14px;
+}
+button:hover { background: #e0e0e0; }
+.actionBtn { background: #009688; color: white; border: none; }
+.actionBtn:hover { background: #00796b; }
+.duoBtn { background: #6200ea; color: white; border: none; }
+.duoBtn:hover { background: #4a00b0; }
+.startMatchBtn { background: #1565c0; color: white; border: none; padding: 12px; width: 100%; font-size: 15px; }
+.startMatchBtn:hover { background: #0d47a1; }
+.engineBtn { background: #ff9800; color: #fff; border: none; padding: 12px; width: 100%; font-size: 16px; margin-top: 15px;}
+.engineBtn:hover { background: #f57c00; }
+.hardResetBtn { background: #c62828; color: white; border: none; }
+.hardResetBtn:hover { background: #b71c1c; }
+.softResetBtn { background: #fff; color: #1565c0; border: 1px solid #1565c0; }
+
+.cancelBtn { background: #fff; color: #c62828; border: 1px solid #c62828; margin-top: 8px; }
+.cancelBtn:hover { background: #ffebee; }
+
+.statusToggleBtn {
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 4px;
+    border: none;
+    color: white;
+    margin-left: 4px;
+    margin-top: 4px;
+    font-weight: bold;
+}
+.statusToggleBtn.pause { background: #e65100; }
+.statusToggleBtn.resume { background: #2e7d32; }
+
+.sort-control-panel {
+    display: flex;
+    align-items: center;
+    background: #edf2f7;
+    padding: 10px 14px;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    font-size: 14px;
+    font-weight: bold;
+    width: fit-content;
+}
+.sort-control-panel input {
+    margin-right: 8px;
+    transform: scale(1.2);
+    cursor: pointer;
+}
+
+.table-container {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    min-width: 800px;
+}
+th, td {
+    border: 1px solid #ddd;
+    padding: 10px;
+    text-align: center;
+    font-size: 14px;
+}
+th { background: #f2f2f2; cursor: pointer; user-select: none; white-space: nowrap; }
+tr:nth-child(even) { background: #fafafa; }
+</style>
+</head>
+
+<body>
+
+<div class="header-container">
+    <h2>🏓 KitchenSync Matchmaking Dashboard</h2>
+    <button class="hardResetBtn" onclick="hardReset()">⚠️ Hard Reset (Wipe All)</button>
+</div>
+
+<div class="infoBox">
+    <div style="font-weight: bold; margin-bottom: 8px; font-size: 16px;">🔄 System Logic & Features Overview:</div>
+    <ul style="margin: 0; padding-left: 20px;">
+        <li>👤 <b>Player Profiles:</b> Click any player's name in the leaderboard to open their dynamic, individual performance sheet.</li>
+        <li>🤖 <b>Auto-Matchmaker:</b> Automatically generates matches based on priority (fewest games played & longest wait time). Intelligently mixes Solos and Fixed Duos.</li>
+        <li>🎱 <b>Dynamic Pools:</b> Players start in the ⚪ Neutral pool. Match winners advance to the 🏆 Winners pool, and losers drop to the 📉 Losers pool. Matchups stay segmented within these tiers.</li>
+        <li>👥 <b>Fixed Duos:</b> Lock pairs together. They queue as a single unit, and pausing/resuming one instantly syncs their partner's state.</li>
+        <li>⏸️ <b>Status Management:</b> Players can be toggled to 🔴 Resting to skip matchmaking. Players on courts or queued must have their matches canceled before removal or resting.</li>
+        <li>⛓️ <b>Multi-Sort Leaderboard:</b> Check the Multi-Sort toggle (or hold Shift while clicking headers) to chain multiple sorting criteria (e.g., sort by Wins, then Point Diff).</li>
+        <li>📝 <b>Data Corrections:</b> Tap the <code>✏️</code> edit icon in the roster below to update names without losing stats. Use Bulk Add for fast setups.</li>
+        <li>🔄 <b>Flexible Resets:</b> Clear upcoming matches, reset pools to Neutral, perform a Soft Reset (keeps roster, wipes stats), or Hard Reset (wipes everything).</li>
+    </ul>
+</div>
+
+<div class="card">
+    <h4>Add New Players</h4>
+    <div class="input-group">
+        <input type="text" id="playerName" placeholder="Enter single player name" onkeydown="if(event.key==='Enter') addPlayer()">
+        <button class="actionBtn" onclick="addPlayer()">Add Player</button>
+    </div>
+    
+    <div class="input-group" style="flex-direction: column; align-items: stretch; margin-top: 10px;">
+        <textarea id="bulkPlayerNames" placeholder="Bulk Add (One name per line)" style="width: 100%; min-height: 60px; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-family: inherit;"></textarea>
+        <button class="actionBtn" onclick="addPlayersBulk()" style="margin-top: 4px; width: 100%;">Add Bulk Players</button>
+    </div>
+
+    <h4 style="margin-top: 20px;">Form Fixed Duo Team</h4>
+    <div class="input-group">
+        <select id="duoSelect1"><option value="">-- Select Player 1 --</option></select>
+        <select id="duoSelect2"><option value="">-- Select Player 2 --</option></select>
+        <button class="duoBtn" onclick="createDuoTeam()">🔗 Lock Fixed Duo</button>
+    </div>
+
+    <div id="players" style="margin-top: 15px;"></div>
+    <button class="engineBtn" onclick="resetPoolsToNeutral()">🔄 Reset All Pools to Neutral</button>
+</div>
+
+<div class="card">
+    <h3>📊 Live Waiting Pools (Ready for Matches)</h3>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+        <div style="padding: 10px; background: #e8f5e9; border-radius: 6px;">
+            <b style="color: #2e7d32;">🏆 Winners Pool:</b>
+            <div id="winnersPoolList" style="margin-top: 5px; font-size: 14px; font-weight: bold;"></div>
+        </div>
+        <div style="padding: 10px; background: #ffebee; border-radius: 6px;">
+            <b style="color: #c62828;">📉 Losers Pool:</b>
+            <div id="losersPoolList" style="margin-top: 5px; font-size: 14px; font-weight: bold;"></div>
+        </div>
+        <div style="padding: 10px; background: #e3f2fd; border-radius: 6px;">
+            <b style="color: #1565c0;">⚪ Neutral Pool:</b>
+            <div id="neutralPoolList" style="margin-top: 5px; font-size: 14px; font-weight: bold;"></div>
+        </div>
+    </div>
+</div>
+
+<div class="card">
+    <div class="input-group">
+        <span style="font-weight:bold; line-height: 38px;">Total Courts:</span>
+        <input type="number" id="courtCount" value="1" min="1" style="max-width: 80px; text-align: center;">
+        <button class="actionBtn" onclick="updateCourtsSetup()">Update Courts</button>
+        <button class="softResetBtn" onclick="resetSystemOnly()">🔄 Reset System (Keep Players)</button>
+    </div>
+</div>
+
+<h3>🏟️ Active Courts</h3>
+<div id="courts"></div>
+
+<div class="card">
+    <h3>⏳ Upcoming Queue (First Come, First Served)</h3>
+    <div id="nextUpQueue"><em>Waiting for pools to hit 4 available slots...</em></div>
+</div>
+
+<h3>🏆 Performance Leaderboard</h3>
+<div class="sort-control-panel">
+    <input type="checkbox" id="multiSortToggle">
+    <label for="multiSortToggle">⛓️ Multi-Sort Mode (Chains taps)</label>
+</div>
+
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+            <th onclick="sort('name', event)" id="th_name">Name</th>
+            <th onclick="sort('designation', event)" id="th_designation">Designation</th>
+            <th onclick="sort('pool', event)" id="th_pool">Current Pool</th>
+            <th onclick="sort('wins', event)" id="th_wins">W</th>
+            <th onclick="sort('losses', event)" id="th_losses">L</th>
+            <th onclick="sort('games', event)" id="th_games">Games</th>
+            <th onclick="sort('pointsScored', event)" id="th_pointsScored">PF</th>
+            <th onclick="sort('pointsConceded', event)" id="th_pointsConceded">PA</th>
+            <th onclick="sort('pointDiff', event)" id="th_pointDiff">PD</th>
+            <th>Status / Actions</th>
+            </tr>
+        </thead>
+        <tbody id="leader"></tbody>
+    </table>
+</div>
+
+<script>
+/* ---------------- ENGINE CORE ---------------- */
+function generateID() {
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+    return 'id-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
+}
+
+// Unified state key for live linkage
+const STORAGE_KEY = "pickleball_shared_state_v1";
+
+function saveState(){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ players, matches, tournamentMatches, matchHistory, sortState }));
+}
+
+function loadState(){
+    try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return;
+        const s = JSON.parse(raw);
+        players = s.players || [];
+        matches = s.matches || [];
+        tournamentMatches = s.tournamentMatches || [];
+        matchHistory = s.matchHistory || [];
+        
+        if (s.sortState) {
+            sortState = Array.isArray(s.sortState) ? s.sortState : [s.sortState];
+        } else {
+            sortState = [{key:"wins", asc:false}];
+        }
+    }catch(e){ console.error(e); }
+}
+
+/* ---------------- STATE ---------------- */
+let players=[];
+let matches=[]; 
+let tournamentMatches=[]; 
+let matchHistory=[];
+let sortState=[{key:"wins", asc:false}];
+
+loadState();
+
+players.forEach(p => {
+    if(p.isResting === undefined) p.isResting = false;
+    if(p.priorityScore === undefined) p.priorityScore = 0;
+    if(p.waitingSince === undefined) p.waitingSince = Date.now();
+});
+
+if(matches.length === 0) {
+    setTimeout(updateCourtsSetup, 50); 
+} else {
+    setTimeout(() => {
+        document.getElementById("courtCount").value = matches.length;
+        renderAll();
+    }, 50);
+}
+
+function updateCourtsSetup() {
+    let count = parseInt(document.getElementById("courtCount").value) || 1;
+    let newMatches = [];
+    for(let c = 1; c <= count; c++) {
+        let existing = matches.find(x => x.court === c);
+        if(existing) { newMatches.push(existing); } 
+        else {
+            newMatches.push({ id: generateID(), court: c, teamA: null, teamB: null, scoreA: "", scoreB: "", type: "", processed: true });
+        }
+    }
+    matches = newMatches;
+    renderAll(); saveState();
+}
+
+/* ---------------- PLAYER & DUO MANAGEMENT ---------------- */
+function addPlayer(){
+    let name=document.getElementById("playerName").value.trim();
+    if(!name)return;
+    if(players.some(p => p.name.toLowerCase() === name.toLowerCase())) { alert("Name already exists!"); return; }
+
+    players.push({
+        id: generateID(), name, pool: 'neutral', duoId: null, 
+        wins:0, losses:0, games:0, pointsScored: 0, pointsConceded: 0, pointDiff: 0,
+        isResting: false, priorityScore: 0, waitingSince: Date.now()
+    });
+    document.getElementById("playerName").value="";
+    autoMatchmaker(); renderAll(); saveState();
+}
+
+function addPlayersBulk() {
+    let textarea = document.getElementById("bulkPlayerNames");
+    let lines = textarea.value.split('\n');
+    lines.forEach(line => {
+        let name = line.trim();
+        if(!name || players.some(p => p.name.toLowerCase() === name.toLowerCase())) return;
+        players.push({
+            id: generateID(), name, pool: 'neutral', duoId: null,
+            wins: 0, losses: 0, games: 0, pointsScored: 0, pointsConceded: 0, pointDiff: 0,
+            isResting: false, priorityScore: 0, waitingSince: Date.now()
+        });
+    });
+    textarea.value = "";
+    autoMatchmaker(); renderAll(); saveState();
+}
+
+function editPlayerName(id) {
+    let p = players.find(x => x.id === id);
+    if(!p) return;
+    let newName = prompt("Update player name:", p.name);
+    if(newName && newName.trim() !== "") {
+        newName = newName.trim();
+        if(players.some(x => x.id !== id && x.name.toLowerCase() === newName.toLowerCase())) {
+            alert("This name is already taken!");
+            return;
+        }
+        p.name = newName;
+        renderAll(); saveState();
+    }
+}
+
+function createDuoTeam() {
+    let p1Id = document.getElementById("duoSelect1").value;
+    let p2Id = document.getElementById("duoSelect2").value;
+    if(!p1Id || !p2Id) { alert("Select two distinct players!"); return; }
+    if(p1Id === p2Id) { alert("A player cannot form a team with themselves."); return; }
+
+    let dId = "duo-" + generateID();
+    let p1 = players.find(x => x.id === p1Id);
+    let p2 = players.find(x => x.id === p2Id);
+
+    if(p1 && p2) {
+        p1.duoId = dId; p2.duoId = dId;
+        p1.pool = 'neutral'; p2.pool = 'neutral';
+        p1.isResting = false; p2.isResting = false;
+    }
+    autoMatchmaker(); renderAll(); saveState();
+}
+
+function dissolveDuo(duoId) {
+    let teamMembers = players.filter(p => p.duoId === duoId);
+
+    let activeMatch = matches.find(m => !m.processed && m.teamA && m.teamB && (m.teamA.players.includes(teamMembers[0].id) || m.teamB.players.includes(teamMembers[0].id)));
+    if (activeMatch) {
+        alert("This duo is currently on a live court. Please cancel their match before splitting.");
+        return;
+    }
+    
+    tournamentMatches = tournamentMatches.filter(q => !(q.teamA.players.includes(teamMembers[0].id) || q.teamB.players.includes(teamMembers[0].id)));
+    teamMembers.forEach(p => p.duoId = null);
+    autoMatchmaker(); renderAll(); saveState();
+}
+
+function removePlayer(id){
+    let p = players.find(x => x.id === id); if(!p) return;
+    let status = getRawStatus(id);
+    if (status === "court" || status === "queued") {
+        alert("Cannot remove an active player! Cancel their match first.");
+        return;
+    }
+    if(p.duoId) {
+        if(!confirm("This player is part of a Fixed Duo. Removing them will split the duo. Proceed?")) return;
+        players.filter(x => x.duoId === p.duoId).forEach(x => x.duoId = null);
+    }
+    players=players.filter(p=>p.id!==id);
+    renderAll(); saveState();
+}
+
+function toggleRest(id) {
+    let p = players.find(x => x.id === id); if(!p) return;
+    
+    let rawStat = getRawStatus(id);
+    
+    // Block resting if actively playing on a court
+    if (rawStat === "court") {
+        alert("Cannot change status for players currently on court! Cancel their match first.");
+        return;
+    }
+
+    // If they were in the queue, dissolve their upcoming match to let the autoMatchmaker recalculate
+    if (rawStat === "queued") {
+        tournamentMatches = tournamentMatches.filter(m => !(m.teamA.players.includes(id) || m.teamB.players.includes(id)));
+    }
+
+    let setResting = !p.isResting;
+    
+    if(p.duoId) {
+        let partner = players.find(x => x.duoId === p.duoId && x.id !== p.id);
+        p.isResting = setResting;
+        
+        if(!p.isResting) {
+            if (partner && !partner.isResting) {
+                p.pool = partner.pool;
+            } else {
+                p.pool = 'neutral';
+            }
+            p.waitingSince = Date.now();
+        }
+        
+        if(partner) {
+            if (partner.isResting !== setResting) {
+                partner.isResting = setResting;
+                if(!partner.isResting) {
+                    partner.pool = p.pool; 
+                    partner.waitingSince = Date.now();
+                }
+            }
+        }
+    } else {
+        p.isResting = setResting;
+        if(!p.isResting) {
+            p.pool = 'neutral';
+            p.waitingSince = Date.now();
+        }
+    }
+    
+    autoMatchmaker(); renderAll(); saveState();
+}
+
+function getRawStatus(id) {
+    for(let m of matches){ if(!m.processed && m.teamA && m.teamB && (m.teamA.players.includes(id)||m.teamB.players.includes(id))) return "court"; }
+    for(let q of tournamentMatches) { if(q.teamA.players.includes(id) || q.teamB.players.includes(id)) return "queued"; }
+    return "waiting";
+}
+
+function resetPoolsToNeutral() {
+    if(!confirm("Reset everyone back to the Neutral Pool? Upcoming queued matches will clear.")) return;
+    players.forEach(p => p.pool = 'neutral');
+    tournamentMatches = [];
+    autoMatchmaker(); renderAll(); saveState();
+}
+
+/* ---------------- RESETS ---------------- */
+function resetSystemOnly() {
+    if(!confirm("Soft Reset: Keep your player roster, but wipe all stats, active courts, and match history?")) return;
+    players.forEach(p => {
+        p.pool = 'neutral';
+        p.wins = 0; p.losses = 0; p.games = 0; p.pointsScored = 0; p.pointsConceded = 0; p.pointDiff = 0;
+        p.isResting = false; p.priorityScore = 0; p.waitingSince = Date.now();
+    });
+    tournamentMatches = [];
+    matchHistory = [];
+    updateCourtsSetup();
+}
+
+function hardReset() {
+    if(!confirm("🚨 HARD RESET: This will delete ALL players, stats, and matches. This cannot be undone! Proceed?")) return;
+    players = []; matches = []; tournamentMatches = []; matchHistory = [];
+    localStorage.removeItem(STORAGE_KEY);
+    updateCourtsSetup();
+}
+
+/* ---------------- ADVANCED HYBRID POOL MATCHMAKER ---------------- */
+function autoMatchmaker() {
+    let freePlayers = players.filter(p => !p.isResting && getRawStatus(p.id) === "waiting");
+    
+    freePlayers.sort((a, b) => {
+        if((a.priorityScore || 0) !== (b.priorityScore || 0)) return (a.priorityScore || 0) - (b.priorityScore || 0);
+        return (a.waitingSince || 0) - (b.waitingSince || 0);
+    });
+
+    ['winner', 'loser_neutral'].forEach(poolType => {
+        let poolPlayers = (poolType === 'winner') 
+            ? freePlayers.filter(p => p.pool === 'winner')
+            : freePlayers.filter(p => p.pool === 'loser' || p.pool === 'neutral');
+        
+        let duoGroups = {};
+        let solos = [];
+        
+        poolPlayers.forEach(p => {
+            if (p.duoId) {
+                if (!duoGroups[p.duoId]) duoGroups[p.duoId] = [];
+                duoGroups[p.duoId].push(p);
+            } else {
+                solos.push(p);
+            }
+        });
+        
+        let readyDuos = [];
+        for (let dId in duoGroups) {
+            if (duoGroups[dId].length === 2) {
+                readyDuos.push(duoGroups[dId]); 
+            } else {
+                solos.push(...duoGroups[dId]);
+            }
+        }
+        
+        let poolLabel = poolType === 'winner' ? '🏆 Winners' : '📉 Losers/Neutral';
+
+        while (readyDuos.length >= 2) {
+            let dA = readyDuos.shift();
+            let dB = readyDuos.shift();
+            tournamentMatches.push({
+                id: generateID(), type: `${poolLabel} Tier (Duo vs Duo)`,
+                teamA: { players: [dA[0].id, dA[1].id] },
+                teamB: { players: [dB[0].id, dB[1].id] }
+            });
+        }
+        
+        while (readyDuos.length >= 1 && solos.length >= 2) {
+            let dA = readyDuos.shift();
+            let s1 = solos.shift();
+            let s2 = solos.shift();
+            tournamentMatches.push({
+                id: generateID(), type: `${poolLabel} Tier (Duo vs Solos)`,
+                teamA: { players: [dA[0].id, dA[1].id] },
+                teamB: { players: [s1.id, s2.id] }
+            });
+        }
+        
+        while (solos.length >= 4) {
+            let s1 = solos.shift(); let s2 = solos.shift();
+            let s3 = solos.shift(); let s4 = solos.shift();
+            tournamentMatches.push({
+                id: generateID(), type: `${poolLabel} Tier (Solos Scramble)`,
+                teamA: { players: [s1.id, s2.id] },
+                teamB: { players: [s3.id, s4.id] }
+            });
+        }
+    });
+}
+
+/* ---------------- COURT CYCLES ---------------- */
+function startMatch(courtSlotId) {
+    let m = matches.find(x => x.id === courtSlotId); if(!m) return;
+
+    if(tournamentMatches.length > 0) {
+        let nextMatch = tournamentMatches.shift();
+        m.teamA = nextMatch.teamA;
+        m.teamB = nextMatch.teamB;
+        m.type = nextMatch.type;
+        m.scoreA = ""; m.scoreB = ""; m.processed = false; m.winner = null;
+        renderAll(); saveState();
+    } else {
+        alert("The upcoming match queue is empty. Gather more players into a tier pool first!");
+    }
+}
+
+function cancelMatch(courtSlotId) {
+    let m = matches.find(x => x.id === courtSlotId); if(!m) return;
+    if(!confirm("Cancel this live match? The teams will be sent back into the upcoming queue.")) return;
+    
+    tournamentMatches.unshift({ id: generateID(), type: m.type, teamA: m.teamA, teamB: m.teamB });
+    m.teamA = null; m.teamB = null; m.processed = true;
+    autoMatchmaker(); renderAll(); saveState();
+}
+
+function confirmScoreMatch(id){
+    let m = matches.find(x => x.id === id); if(!m || m.processed) return;
+    let sA = parseInt(document.getElementById(`inputA_${id}`).value);
+    let sB = parseInt(document.getElementById(`inputB_${id}`).value);
+
+    if(isNaN(sA) || isNaN(sB)) { alert("Enter valid numeric scores!"); return; }
+    m.scoreA = sA; m.scoreB = sB; m.winner = sA > sB ? 'A' : 'B'; m.processed = true;
+
+    let winTeam = m.winner === 'A' ? m.teamA.players : m.teamB.players;
+    let loseTeam = m.winner === 'A' ? m.teamB.players : m.teamA.players;
+    let time = Date.now();
+
+    matchHistory.push({
+        id: m.id,
+        court: m.court,
+        teamA: [...m.teamA.players],
+        teamB: [...m.teamB.players],
+        scoreA: sA,
+        scoreB: sB,
+        winner: m.winner,
+        type: m.type
+    });
+
+    winTeam.forEach(pId => { let p = players.find(x => x.id === pId); if(p) p.pool = 'winner'; });
+    loseTeam.forEach(pId => { let p = players.find(x => x.id === pId); if(p) p.pool = 'loser'; });
+
+    winTeam.forEach(pId => {
+        let p = players.find(x => x.id === pId);
+        if(p) { p.games++; p.priorityScore++; p.waitingSince = time; p.wins++; p.pointsScored += Math.max(sA,sB); p.pointsConceded += Math.min(sA,sB); p.pointDiff = p.pointsScored - p.pointsConceded; }
+    });
+    loseTeam.forEach(pId => {
+        let p = players.find(x => x.id === pId);
+        if(p) { p.games++; p.priorityScore++; p.waitingSince = time; p.losses++; p.pointsScored += Math.min(sA,sB); p.pointsConceded += Math.max(sA,sB); p.pointDiff = p.pointsScored - p.pointsConceded; }
+    });
+    
+    autoMatchmaker(); renderAll(); saveState();
+}
+
+function storeScore(matchId, team, val) {
+    let m = matches.find(x => x.id === matchId); if(!m) return;
+    if(team === 'A') m.scoreA = parseInt(val) || 0;
+    if(team === 'B') m.scoreB = parseInt(val) || 0;
+    saveState();
+}
+
+/* ---------------- INTERFACE RENDERING ---------------- */
+function renderPlayers(){
+    let soloOptions = players.filter(p => !p.duoId).map(p => `<option value="${p.id}">${p.name}</option>`).join("");
+    document.getElementById("duoSelect1").innerHTML = '<option value="">-- Select Player 1 --</option>' + soloOptions;
+    document.getElementById("duoSelect2").innerHTML = '<option value="">-- Select Player 2 --</option>' + soloOptions;
+
+    let renderedDuoIds = new Set();
+    let html = "";
+
+    players.forEach(p => {
+        if(p.duoId) {
+            if(renderedDuoIds.has(p.duoId)) return;
+            renderedDuoIds.add(p.duoId);
+            let pair = players.filter(x => x.duoId === p.duoId);
+            let displayLabel = `👥 ${pair[0]?.name} + ${pair[1]?.name}`;
+            
+            let splitBtn = `<button onclick="dissolveDuo('${p.duoId}')" title="Split Duo" style="padding:8px;">🔓 Split</button>`;
+            let edit1Btn = `<button onclick="editPlayerName('${pair[0].id}')" title="Edit ${pair[0].name}" style="padding:8px;">✏️</button>`;
+            let edit2Btn = `<button onclick="editPlayerName('${pair[1].id}')" title="Edit ${pair[1].name}" style="padding:8px;">✏️</button>`;
+
+            html += `
+            <span class="player-controls" style="opacity: ${p.isResting ? 0.6 : 1}">
+                <div class="playerBtn ${p.isResting ? 'paused' : ''}" style="display:inline-block;">
+                    ${displayLabel} ${p.isResting ? '(Paused)' : ''}
+                </div>
+                ${edit1Btn}
+                ${edit2Btn}
+                ${splitBtn}
+            </span>`;
+        } else {
+            html += `
+            <span class="player-controls" style="opacity: ${p.isResting ? 0.6 : 1}">
+                <div class="playerBtn ${p.isResting ? 'paused' : ''}" style="display:inline-block;">
+                    👤 ${p.name} ${p.isResting ? '(Paused)' : ''}
+                </div>
+                <button onclick="editPlayerName('${p.id}')" style="padding: 8px;" title="Edit Name">✏️</button>
+                <button onclick="removePlayer('${p.id}')" style="padding: 8px;" title="Remove Player">🗑️</button>
+            </span>`;
+        }
+    });
+    document.getElementById("players").innerHTML = html;
+}
+
+function renderPoolsDashboard() {
+    let free = players.filter(p => !p.isResting && getRawStatus(p.id) === "waiting");
+    
+    const getNames = (arr) => {
+        let seenDuo = new Set();
+        let list = [];
+        arr.forEach(p => {
+            if(p.duoId) {
+                if(seenDuo.has(p.duoId)) return;
+                seenDuo.add(p.duoId);
+                let pair = players.filter(x => x.duoId === p.duoId);
+                list.push(`[${pair[0].name} + ${pair[1].name}]`);
+            } else {
+                list.push(p.name);
+            }
+        });
+        return list.length ? list.join(", ") : "<em>Empty</em>";
+    };
+
+    document.getElementById("winnersPoolList").innerHTML = getNames(free.filter(p => p.pool === 'winner'));
+    document.getElementById("losersPoolList").innerHTML = getNames(free.filter(p => p.pool === 'loser'));
+    document.getElementById("neutralPoolList").innerHTML = getNames(free.filter(p => p.pool === 'neutral'));
+}
+
+function renderCourts(){
+    document.getElementById("courts").innerHTML = `<div class="courtsGrid">` + 
+    matches.map(m=>{
+        let done = m.processed; let hasData = m.teamA && m.teamB;
+
+        if(!hasData || done) {
+            let contextLabel = "";
+            if(hasData && done) {
+                let pA0 = players.find(p=>p.id===m.teamA.players[0])?.name || "??";
+                let pA1 = players.find(p=>p.id===m.teamA.players[1])?.name || "??";
+                let pB0 = players.find(p=>p.id===m.teamB.players[0])?.name || "??";
+                let pB1 = players.find(p=>p.id===m.teamB.players[1])?.name || "??";
+                contextLabel = `<div style="font-size: 11px; color: #666; margin-bottom: 8px;"><b>Last Game (${m.type}):</b><br>${pA0} & ${pA1} (${m.scoreA}) vs <br>${pB0} & ${pB1} (${m.scoreB})</div>`;
+            }
+            return `<div class="court vacant"><b>Court ${m.court}</b><div style="margin-top:10px; margin-bottom:15px;">${contextLabel || `<span style="color:#888; font-style:italic;">Vacant</span>`}</div><button class="startMatchBtn" onclick="startMatch('${m.id}')">Assign Next Match</button></div>`;
+        }
+
+        let pA0 = players.find(p=>p.id===m.teamA.players[0])?.name || "??";
+        let pA1 = players.find(p=>p.id===m.teamA.players[1])?.name || "??";
+        let pB0 = players.find(p=>p.id===m.teamB.players[0])?.name || "??";
+        let pB1 = players.find(p=>p.id===m.teamB.players[1])?.name || "??";
+
+        return `<div class="court"><b>Court ${m.court}</b> <span style="float:right; font-weight:bold; font-size:11px; color:#ff9800;">${m.type}</span><hr>
+            <div class="score-row"><div>👥 <strong>${pA0} + ${pA1}</strong></div><div><input type="number" class="scoreInput" id="inputA_${m.id}" value="${m.scoreA}" onchange="storeScore('${m.id}', 'A', this.value)"></div></div><hr>
+            <div class="score-row"><div>👥 <strong>${pB0} + ${pB1}</strong></div><div><input type="number" class="scoreInput" id="inputB_${m.id}" value="${m.scoreB}" onchange="storeScore('${m.id}', 'B', this.value)"></div></div>
+            <button class="actionBtn" style="width: 100%; padding: 12px; margin-bottom: 8px;" onclick="confirmScoreMatch('${m.id}')">Confirm Score</button>
+            <button class="cancelBtn" style="width: 100%; padding: 8px;" onclick="cancelMatch('${m.id}')">❌ Cancel Match</button></div>`;
+    }).join("") + `</div>`;
+}
+
+function renderNextUpQueue(){
+    if (tournamentMatches.length === 0) {
+        document.getElementById("nextUpQueue").innerHTML = "<em>No matches ready. Accumulating players...</em>";
+        return;
+    }
+    document.getElementById("nextUpQueue").innerHTML = tournamentMatches.map((m, i) => {
+        let pA0 = players.find(p => p.id === m.teamA.players[0])?.name || "??";
+        let pA1 = players.find(p => p.id === m.teamA.players[1])?.name || "??";
+        let pB0 = players.find(p => p.id === m.teamB.players[0])?.name || "??";
+        let pB1 = players.find(p => p.id === m.teamB.players[1])?.name || "??";
+        
+        let colorType = m.type.includes("Winners") ? "pool-winner" : "pool-loser";
+        return `<div class="queueBadge"><b>#${i + 1}</b> <span class="pool-tag ${colorType}">${m.type}</span><br><b>T1:</b> ${pA0} & ${pA1}<br><b>T2:</b> ${pB0} & ${pB1}</div>`;
+    }).join("");
+}
+
+function getStatusLabelAndAction(p) {
+    let rawStatus = getRawStatus(p.id);
+    if(rawStatus === "court") return `<td><b>🟢 On Court</b></td>`;
+    if(rawStatus === "queued") return `<td><b>🔵 Queued</b> <br><button class="statusToggleBtn pause" onclick="toggleRest('${p.id}')">⏸️ Pause</button></td>`;
+    if(p.isResting) return `<td>🔴 Resting <br><button class="statusToggleBtn resume" onclick="toggleRest('${p.id}')">▶️ Resume</button></td>`;
+    return `<td><b>🟡 Waiting</b> <br><button class="statusToggleBtn pause" onclick="toggleRest('${p.id}')">⏸️ Pause</button></td>`;
+}
+
+/* ---------------- LEADERBOARD ENGINE ---------------- */
+function sort(k, event){
+    const multiSortToggle = document.getElementById("multiSortToggle");
+    const isMultiSortActive = (multiSortToggle && multiSortToggle.checked) || (event && event.shiftKey);
+
+    if (isMultiSortActive) {
+        let existing = sortState.find(x => x.key === k);
+        if (existing) { existing.asc = !existing.asc; } 
+        else { sortState.push({key: k, asc: false}); }
+    } else {
+        if (sortState.length === 1 && sortState[0].key === k) { sortState[0].asc = !sortState[0].asc; } 
+        else { sortState = [{key: k, asc: false}]; }
+    }
+    renderLeader(); saveState();
+}
+
+function renderLeader(){
+    const headerLabels = { name: "Name", designation: "Designation", pool: "Current Pool", wins: "W", losses: "L", games: "Games", pointsScored: "PF", pointsConceded: "PA", pointDiff: "PD" };
+
+    Object.keys(headerLabels).forEach(k => {
+        const th = document.getElementById(`th_${k}`);
+        if (th) {
+            let index = sortState.findIndex(x => x.key === k);
+            let icon = " ↕";
+            if (index !== -1) {
+                let dir = sortState[index].asc ? "▲" : "▼";
+                let priority = sortState.length > 1 ? `<sub>${index + 1}</sub>` : "";
+                icon = ` ${dir}${priority}`;
+            }
+            th.innerHTML = headerLabels[k] + icon;
+        }
+    });
+
+    let data=[...players];
+    data.sort((a,b)=>{
+        for (let criteria of sortState) {
+            let valA, valB;
+            if (criteria.key === 'designation') {
+                valA = a.duoId ? "Fixed Duo" : "Solo"; valB = b.duoId ? "Fixed Duo" : "Solo";
+            } else if (criteria.key === 'pool') {
+                valA = a.pool; valB = b.pool;
+            } else {
+                valA = a[criteria.key] ?? 0; valB = b[criteria.key] ?? 0;
+            }
+
+            if (typeof valA === 'string' && typeof valB === 'string') {
+                let cmp = valA.localeCompare(valB); if (cmp !== 0) return criteria.asc ? cmp : -cmp;
+            } else {
+                if (valA !== valB) return criteria.asc ? valA - valB : valB - valA;
+            }
+        }
+        return 0;
+    });
+
+    document.getElementById("leader").innerHTML=data.map(p=>{
+        let poolBadge = p.pool === 'winner' ? '<span class="pool-tag pool-winner">Winners</span>' : p.pool === 'loser' ? '<span class="pool-tag pool-loser">Losers</span>' : '<span class="pool-tag pool-neutral">Neutral</span>';
+        let designator = p.duoId ? `<span style="color:#7b1fa2;font-weight:bold;font-size:12px;">Fixed Duo</span>` : `<span style="color:#666;font-size:12px;">Solo</span>`;
+        
+        return `<tr>
+            <td style="font-weight:bold; text-align:left; padding-left:15px;">
+                <a href="player.html?id=${p.id}" target="_blank" style="color: #1565c0; text-decoration: underline;" title="View Profile Canvas">${p.name}</a>
+            </td>
+            <td>${designator}</td>
+            <td>${poolBadge}</td>
+            <td><b>${p.wins}</b></td><td>${p.losses}</td><td>${p.games}</td><td>${p.pointsScored}</td><td>${p.pointsConceded}</td>
+            <td><span style="color:${p.pointDiff >= 0 ? 'green':'red'}; font-weight:bold;">${p.pointDiff > 0 ? '+':''}${p.pointDiff}</span></td>
+            ${getStatusLabelAndAction(p)}
+        </tr>`;
+    }).join("");
+}
+
+function renderAll() { renderPlayers(); renderPoolsDashboard(); renderCourts(); renderNextUpQueue(); renderLeader(); }
+</script>
+
+</body>
+</html>
