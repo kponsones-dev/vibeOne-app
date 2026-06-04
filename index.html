@@ -2,17 +2,26 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Smart Pickleball System (VibeCode v6.4.2026.930)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>KitchenSync - Smart Pickleball System (v6.4.2026.935)</title>
 
 <style>
-body{
-    font-family: Arial, sans-serif;
-    padding: 20px;
-    background: #fdfdfd;
-    color: #333;
+/* Universal Box Sizing to prevent width overflow */
+* {
+    box-sizing: border-box;
 }
 
-.infoBox{
+body {
+    font-family: Arial, sans-serif;
+    padding: 15px;
+    background: #fdfdfd;
+    color: #333;
+    margin: 0;
+}
+
+h2, h3, h4 { margin-top: 0; }
+
+.infoBox {
     background: #f5f5f5;
     padding: 12px;
     border-radius: 8px;
@@ -22,7 +31,7 @@ body{
     line-height: 1.6;
 }
 
-.card{
+.card {
     border: 1px solid #ddd;
     padding: 15px;
     border-radius: 8px;
@@ -31,26 +40,50 @@ body{
     box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
-.courtsGrid{
+/* Mobile-friendly flex groups */
+.input-group {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    margin-bottom: 10px;
+}
+.input-group input {
+    flex: 1;
+    min-width: 150px;
+    padding: 8px;
+    font-size: 16px; /* 16px prevents iOS auto-zoom */
+    border: 1px solid #ccc;
+    border-radius: 4px;
+}
+
+.courtsGrid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    /* Scales down to 1 column on small phones */
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
     gap: 15px;
     margin-bottom: 20px;
 }
 
-.playerBtn{
+.playerBtn {
     background: #e0e0e0;
     color: #333;
-    padding: 6px 12px;
-    margin: 3px;
+    padding: 8px 12px;
+    margin: 4px 2px;
     border: none;
     border-radius: 4px;
     font-weight: bold;
+    font-size: 14px;
 }
-.playerBtn.selected{background: #2e7d32; color: white;}
-.playerBtn.locked{background: #1565c0; color: white; opacity: 0.6;}
+.playerBtn.selected { background: #2e7d32; color: white; }
+.playerBtn.locked { background: #1565c0; color: white; opacity: 0.6; }
 
-.court{
+.player-controls {
+    display: inline-block;
+    margin-bottom: 6px;
+}
+
+.court {
     border: 1px solid #ccc;
     padding: 15px;
     border-radius: 10px;
@@ -63,14 +96,16 @@ body{
     text-align: center;
     padding: 30px 15px;
 }
-.court.done{
-    background: #e8f5e9;
-    border: 2px solid #2e7d32;
-}
 
+.score-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
 .scoreInput {
-    width: 50px;
-    padding: 5px;
+    width: 60px;
+    padding: 8px;
     font-size: 16px;
     text-align: center;
     border: 1px solid #ccc;
@@ -81,137 +116,143 @@ body{
     display: inline-block;
     background: #ff9800;
     color: white;
-    padding: 4px 8px;
+    padding: 6px 10px;
     border-radius: 12px;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: bold;
-    margin: 4px;
+    margin: 4px 2px;
 }
-.queueBadge.lateBadge {
-    background: #d32f2f;
-}
+.queueBadge.lateBadge { background: #d32f2f; }
 
-button{
+button {
     cursor: pointer;
-    padding: 6px 12px;
+    padding: 8px 14px;
     border: 1px solid #ccc;
     border-radius: 4px;
     background: #f5f5f5;
     font-weight: bold;
-}
-button:hover{ background: #e0e0e0; }
-.actionBtn {
-    background: #2e7d32;
-    color: white;
-    border: none;
-}
-.actionBtn:hover { background: #1b5e20; }
-.startMatchBtn {
-    background: #1565c0;
-    color: white;
-    border: none;
-    padding: 10px 20px;
     font-size: 14px;
 }
+button:hover { background: #e0e0e0; }
+.actionBtn { background: #2e7d32; color: white; border: none; }
+.actionBtn:hover { background: #1b5e20; }
+.startMatchBtn { background: #1565c0; color: white; border: none; padding: 12px; width: 100%; font-size: 15px; }
 .startMatchBtn:hover { background: #0d47a1; }
 
-.cancelBtn {
-    background: #fff;
-    color: #c62828;
-    border: 1px solid #c62828;
-    margin-top: 8px;
-}
-.cancelBtn:hover {
-    background: #ffebee;
-}
+.cancelBtn { background: #fff; color: #c62828; border: 1px solid #c62828; margin-top: 8px; }
+.cancelBtn:hover { background: #ffebee; }
 
 .statusToggleBtn {
-    padding: 3px 8px;
+    padding: 6px 10px;
     font-size: 12px;
     border-radius: 4px;
     border: none;
     color: white;
-    margin-left: 6px;
+    margin-left: 4px;
+    margin-top: 4px;
     font-weight: bold;
 }
 .statusToggleBtn.pause { background: #e65100; }
 .statusToggleBtn.resume { background: #2e7d32; }
 .statusToggleBtn.penalty { background: #757575; }
-.statusToggleBtn.penalty:hover { background: #616161; }
 
-table{
+/* Table specific mobile fixes */
+.table-container {
+    width: 100%;
+    overflow-x: auto; /* Allows horizontal scrolling on small screens */
+    -webkit-overflow-scrolling: touch;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+table {
     width: 100%;
     border-collapse: collapse;
     background: white;
+    min-width: 600px; /* Forces scroll rather than squishing data */
 }
-th,td{
+th, td {
     border: 1px solid #ddd;
-    padding: 8px;
+    padding: 10px;
     text-align: center;
+    font-size: 14px;
 }
-th{background: #f2f2f2; cursor: pointer;}
-tr:nth-child(even) {background: #fafafa;}
+th { background: #f2f2f2; cursor: pointer; white-space: nowrap; }
+tr:nth-child(even) { background: #fafafa; }
+
+/* Mobile Overrides */
+@media (max-width: 600px) {
+    .input-group { flex-direction: column; align-items: stretch; }
+    .input-group button { width: 100%; }
+    .court button { width: 100%; }
+    h2 { font-size: 20px; }
+}
 </style>
 </head>
 
 <body>
 
-<h2>🏓 KitchenSync - Matchmaking System (VibeCode v6.4.2026.930)</h2>
+<h2>🏓 KitchenSync</h2>
 
 <div class="infoBox">
-    <div style="font-weight: bold; margin-bottom: 8px; font-size: 16px;">✨ KitchenSync Features:</div>
-    • <b>Asynchronous Courts:</b> Manage matches independently. Start or finish games on individual courts without waiting for others.<br>
-    • <b>Smart Matchmaking:</b> The auto-pairing engine prioritizes players with the fewest games and longest wait times, while actively avoiding immediate rematches.<br>
-    • <b>Fixed Teams:</b> Lock specific pairs of players together to guarantee they play as a duo.<br>
-    • <b>Rest & Pause Mode:</b> Temporarily sit players out of the matchmaking pool without losing their core data.<br>
-    • <b>Live Analytics:</b> Real-time leaderboard tracking Wins, Losses, Points For (PF), Points Against (PA), and Point Differential (PD).<br>
-    • ⚠️ <b>Permanent Late Penalty:</b> Flagging a player as late instantly resets them to the absolute back of the rotation and permanently marks their record with a late badge for the session.
+    <div style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">✨ System Features:</div>
+    • <b>Asynchronous Courts:</b> Manage matches independently.<br>
+    • <b>Smart Matchmaking:</b> Prioritizes longest wait times & fewest games.<br>
+    • <b>Fixed Teams:</b> Lock specific pairs of players together.<br>
+    • <b>Rest Mode:</b> Pause players without losing their stats.<br>
+    • ⚠️ <b>Late Penalty:</b> Force late players to the back of the queue.
 </div>
 
 <div class="card">
-    <input id="playerName" placeholder="Enter player name" onkeydown="if(event.key==='Enter') addPlayer()">
-    <button class="actionBtn" onclick="addPlayer()">Add Player</button>
-    <div id="players" style="margin-top: 10px;"></div>
+    <div class="input-group">
+        <input type="text" id="playerName" placeholder="Enter player name" onkeydown="if(event.key==='Enter') addPlayer()">
+        <button class="actionBtn" onclick="addPlayer()">Add Player</button>
+    </div>
+    <div id="players" style="margin-top: 15px;"></div>
 
+    <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
     <h4>Fixed Teams</h4>
     <div id="fixedTeams"></div>
-    <button onclick="createTeam()">Create Fixed Team</button>
+    <button onclick="createTeam()" style="width: 100%; margin-top: 8px;">Create Fixed Team (Select 2)</button>
 </div>
 
 <div class="card">
-    Total Courts: <input type="number" id="courtCount" value="2" min="1" style="width: 50px; padding: 4px;">
-    <button class="actionBtn" onclick="updateCourtsSetup()">Update Court Count</button>
-    <button onclick="reset()">Reset Entire System</button>
+    <div class="input-group">
+        <span style="font-weight:bold; line-height: 38px;">Total Courts:</span>
+        <input type="number" id="courtCount" value="2" min="1" style="max-width: 80px; text-align: center;">
+        <button class="actionBtn" onclick="updateCourtsSetup()">Update</button>
+        <button onclick="reset()">Reset System</button>
+    </div>
 </div>
 
 <div class="card">
-    <h3>⏳ Next Up Queue (On Deck)</h3>
+    <h3>⏳ Next Up (On Deck)</h3>
     <div id="nextUpQueue"><em>No players waiting.</em></div>
 </div>
 
-<h3>🏟️ Active Courts Management</h3>
+<h3>🏟️ Active Courts</h3>
 <div id="courts"></div>
 
 <h3>🏆 Leaderboard</h3>
-<table>
-<thead>
-<tr>
-<th onclick="sort('name')">Name</th>
-<th onclick="sort('wins')">Wins</th>
-<th onclick="sort('losses')">Losses</th>
-<th onclick="sort('games')">Games Played</th>
-<th onclick="sort('pointsScored')">PF (Points For)</th>
-<th onclick="sort('pointsConceded')">PA (Points Against)</th>
-<th onclick="sort('pointDiff')">PD (Differential)</th>
-<th>Late?</th>
-<th>Status / Actions</th>
-</tr>
-</thead>
-<tbody id="leader"></tbody>
-</table>
+<div class="table-container">
+    <table>
+        <thead>
+            <tr>
+            <th onclick="sort('name')">Name</th>
+            <th onclick="sort('wins')">W</th>
+            <th onclick="sort('losses')">L</th>
+            <th onclick="sort('games')">Games</th>
+            <th onclick="sort('pointsScored')">PF</th>
+            <th onclick="sort('pointsConceded')">PA</th>
+            <th onclick="sort('pointDiff')">PD</th>
+            <th>Late?</th>
+            <th>Status / Actions</th>
+            </tr>
+        </thead>
+        <tbody id="leader"></tbody>
+    </table>
+</div>
 
 <script>
-
 /* ---------------- STORAGE ---------------- */
 const STORAGE_KEY = "pickleball_state_v7";
 
@@ -240,7 +281,6 @@ function loadState(){
             if(p.waitingSince === undefined) p.waitingSince = Date.now();
             if(p.isLate === undefined) p.isLate = false; 
         });
-
     }catch(e){
         console.error("Failed loading state", e);
     }
@@ -309,16 +349,10 @@ function addPlayer(){
     players.push({
         id:crypto.randomUUID(),
         name,
-        wins:0,
-        losses:0,
-        games:0,
-        pointsScored: 0,
-        pointsConceded: 0,
-        pointDiff: 0,
-        isResting: false,
-        isLate: false, 
-        priorityScore: 0, 
-        waitingSince: Date.now()
+        wins:0, losses:0, games:0,
+        pointsScored: 0, pointsConceded: 0, pointDiff: 0,
+        isResting: false, isLate: false, 
+        priorityScore: 0, waitingSince: Date.now()
     });
 
     document.getElementById("playerName").value="";
@@ -336,13 +370,13 @@ function renderPlayers(){
         let locked=isLocked(p.id);
         let displayName = p.name;
         return `
-        <span style="display:inline-block; margin-bottom: 5px; opacity: ${p.isResting ? 0.5 : 1};">
+        <span class="player-controls" style="opacity: ${p.isResting ? 0.5 : 1};">
             <button class="playerBtn ${selected?'selected':''} ${locked?'locked':''}"
             onclick="toggle('${p.id}')" ${locked || p.isResting ? 'disabled':''}>
             ${displayName} ${p.isResting ? '(Paused)':''}
             </button>
-            <button onclick="editPlayer('${p.id}')">✏️</button>
-            <button onclick="removePlayer('${p.id}')">🗑️</button>
+            <button onclick="editPlayer('${p.id}')" style="padding: 8px;">✏️</button>
+            <button onclick="removePlayer('${p.id}')" style="padding: 8px;">🗑️</button>
         </span>`;
     }).join("");
 }
@@ -351,13 +385,11 @@ function editPlayer(id){
     let p=players.find(x=>x.id===id);
     let n=prompt("Edit name",p.name);
     if(!n)return;
-    
     let nameExists = players.some(x => x.id !== id && x.name.toLowerCase() === n.trim().toLowerCase());
     if(nameExists) {
         alert("That player name is already taken!");
         return;
     }
-    
     p.name=n.trim();
     renderAll();
     saveState();
@@ -398,9 +430,9 @@ function renderFixedTeams(){
         let p1=players.find(p=>p.id===t[0]);
         let p2=players.find(p=>p.id===t[1]);
         return `
-        <div style="margin: 5px 0;">
-            ⭐ ${p1?.name||"?"} & ${p2?.name||"?"}
-            <button onclick="removeTeam(${i})">❌</button>
+        <div style="margin: 8px 0; background: #f0f8ff; padding: 8px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
+            <span>⭐ ${p1?.name||"?"} & ${p2?.name||"?"}</span>
+            <button onclick="removeTeam(${i})" style="padding: 4px 8px;">❌</button>
         </div>`;
     }).join("");
 }
@@ -414,9 +446,7 @@ function removeTeam(i){
 /* ---------------- SMART PAIRING ---------------- */
 function isValidPair(a,b){
     for(let r of pairHistory){
-        if(r.includes(a+"|"+b) || r.includes(b+"|"+a)){
-            return false;
-        }
+        if(r.includes(a+"|"+b) || r.includes(b+"|"+a)) return false;
     }
     return true;
 }
@@ -426,7 +456,6 @@ function smartPairing(rest){
     pool.sort((a, b) => {
         let pa = players.find(p => p.id === a);
         let pb = players.find(p => p.id === b);
-        
         if((pa?.priorityScore || 0) !== (pb?.priorityScore || 0)) {
             return (pa?.priorityScore || 0) - (pb?.priorityScore || 0);
         }
@@ -470,43 +499,36 @@ function startMatch(courtSlotId) {
         }
     });
 
-    let availableIds = players
-        .filter(p => !p.isResting)
-        .map(p => p.id)
-        .filter(id => !activePlayerIds.has(id));
+    let availableIds = players.filter(p => !p.isResting).map(p => p.id).filter(id => !activePlayerIds.has(id));
 
     let candidateTeams = [];
     let usedInPreMade = new Set();
 
     fixedTeams.forEach(t => {
-        if(availableIds.includes(t[0]) && availableIds.includes(t[1])) {
-            if(!usedInPreMade.has(t[0]) && !usedInPreMade.has(t[1])) {
-                let p1 = players.find(p => p.id === t[0]);
-                let p2 = players.find(p => p.id === t[1]);
-                candidateTeams.push({
-                    players: [t[0], t[1]],
-                    avgPriority: ((p1.priorityScore || 0) + (p2.priorityScore || 0)) / 2,
-                    oldestWait: Math.min(p1.waitingSince || 0, p2.waitingSince || 0),
-                    isPreMade: true 
-                });
-                usedInPreMade.add(t[0]); usedInPreMade.add(t[1]);
-            }
+        if(availableIds.includes(t[0]) && availableIds.includes(t[1]) && !usedInPreMade.has(t[0]) && !usedInPreMade.has(t[1])) {
+            let p1 = players.find(p => p.id === t[0]);
+            let p2 = players.find(p => p.id === t[1]);
+            candidateTeams.push({
+                players: [t[0], t[1]],
+                avgPriority: ((p1.priorityScore || 0) + (p2.priorityScore || 0)) / 2,
+                oldestWait: Math.min(p1.waitingSince || 0, p2.waitingSince || 0),
+                isPreMade: true 
+            });
+            usedInPreMade.add(t[0]); usedInPreMade.add(t[1]);
         }
     });
 
     temporaryTeams.forEach(t => {
-        if(availableIds.includes(t[0]) && availableIds.includes(t[1])) {
-            if(!usedInPreMade.has(t[0]) && !usedInPreMade.has(t[1])) {
-                let p1 = players.find(p => p.id === t[0]);
-                let p2 = players.find(p => p.id === t[1]);
-                candidateTeams.push({
-                    players: [t[0], t[1]],
-                    avgPriority: ((p1.priorityScore || 0) + (p2.priorityScore || 0)) / 2,
-                    oldestWait: Math.min(p1.waitingSince || 0, p2.waitingSince || 0),
-                    isPreMade: true 
-                });
-                usedInPreMade.add(t[0]); usedInPreMade.add(t[1]);
-            }
+        if(availableIds.includes(t[0]) && availableIds.includes(t[1]) && !usedInPreMade.has(t[0]) && !usedInPreMade.has(t[1])) {
+            let p1 = players.find(p => p.id === t[0]);
+            let p2 = players.find(p => p.id === t[1]);
+            candidateTeams.push({
+                players: [t[0], t[1]],
+                avgPriority: ((p1.priorityScore || 0) + (p2.priorityScore || 0)) / 2,
+                oldestWait: Math.min(p1.waitingSince || 0, p2.waitingSince || 0),
+                isPreMade: true 
+            });
+            usedInPreMade.add(t[0]); usedInPreMade.add(t[1]);
         }
     });
 
@@ -541,23 +563,18 @@ function startMatch(courtSlotId) {
     for(let i = 1; i < candidateTeams.length; i++) {
         let potentialTeam = candidateTeams[i];
         let elementsOverlap = potentialTeam.players.some(id => selectedTeamA.players.includes(id));
-        if(!elementsOverlap) {
-            selectedTeamB = potentialTeam;
-            break;
-        }
+        if(!elementsOverlap) { selectedTeamB = potentialTeam; break; }
     }
 
     if(!selectedTeamB) {
-        alert("Cannot start match! The remaining available players are overlapping in conflicting lineups.");
+        alert("Cannot start match! Remaining available players overlap in conflicting lineups.");
         return;
     }
 
     m.teamA = { players: selectedTeamA.players };
     m.teamB = { players: selectedTeamB.players };
-    m.scoreA = "";
-    m.scoreB = "";
-    m.processed = false;
-    m.winner = null;
+    m.scoreA = ""; m.scoreB = "";
+    m.processed = false; m.winner = null;
 
     updateSingleMatchHistory([selectedTeamA, selectedTeamB]);
 
@@ -569,15 +586,12 @@ function startMatch(courtSlotId) {
         return !matchingPlayerActive && !p1Resting && !p2Resting;
     });
 
-    renderAll();
-    saveState();
+    renderAll(); saveState();
 }
 
 function updateSingleMatchHistory(playingTeams){
     let round=[];
-    playingTeams.forEach(t=>{
-        round.push(t.players[0]+"|"+t.players[1]);
-    });
+    playingTeams.forEach(t=>{ round.push(t.players[0]+"|"+t.players[1]); });
     if (round.length > 0) {
         pairHistory.unshift(round);
         if(pairHistory.length > HISTORY_LIMIT) pairHistory.pop();
@@ -606,7 +620,7 @@ function renderCourts(){
 
             return `
             <div class="court vacant">
-                <b>Court ${m.court}</b>
+                <b style="font-size: 18px;">Court ${m.court}</b>
                 <div style="margin-top: 10px; margin-bottom: 15px;">
                     ${contextLabel || `<span style="color:#888; font-style:italic;">Court is currently vacant</span>`}
                 </div>
@@ -619,25 +633,19 @@ function renderCourts(){
 
         return `
         <div class="court">
-            <b>Court ${m.court}</b> <span style="float:right; color:green; font-weight:bold; font-size:12px;">🔴 LIVE</span>
+            <b style="font-size: 18px;">Court ${m.court}</b> <span style="float:right; color:green; font-weight:bold; font-size:12px;">🔴 LIVE</span>
             <hr>
-            <div style="margin-bottom: 8px;">
-                <strong>Team A:</strong> ${teamANames}
-                <div style="margin-top:4px;">
-                    Score: <input type="number" min="0" class="scoreInput" id="inputA_${m.id}" 
-                    value="${m.scoreA}" onchange="storeScore('${m.id}', 'A', this.value)">
-                </div>
+            <div class="score-row">
+                <div style="flex:1;"><strong>Team A:</strong><br>${teamANames}</div>
+                <div><input type="number" min="0" class="scoreInput" id="inputA_${m.id}" value="${m.scoreA}" onchange="storeScore('${m.id}', 'A', this.value)"></div>
             </div>
             <hr>
-            <div style="margin-bottom: 12px;">
-                <strong>Team B:</strong> ${teamBNames}
-                <div style="margin-top:4px;">
-                    Score: <input type="number" min="0" class="scoreInput" id="inputB_${m.id}" 
-                    value="${m.scoreB}" onchange="storeScore('${m.id}', 'B', this.value)">
-                </div>
+            <div class="score-row">
+                <div style="flex:1;"><strong>Team B:</strong><br>${teamBNames}</div>
+                <div><input type="number" min="0" class="scoreInput" id="inputB_${m.id}" value="${m.scoreB}" onchange="storeScore('${m.id}', 'B', this.value)"></div>
             </div>
-            <button class="actionBtn" style="width: 100%; padding: 8px;" onclick="confirmScoreMatch('${m.id}')">Confirm Match Result</button>
-            <button class="cancelBtn" style="width: 100%; padding: 6px;" onclick="cancelMatch('${m.id}')">❌ Cancel Match (Release Lineup)</button>
+            <button class="actionBtn" style="width: 100%; padding: 12px; margin-bottom: 8px;" onclick="confirmScoreMatch('${m.id}')">Confirm Result</button>
+            <button class="cancelBtn" style="width: 100%; padding: 8px;" onclick="cancelMatch('${m.id}')">❌ Cancel Match</button>
         </div>`;
     }).join("") + `</div>`;
 }
@@ -646,27 +654,18 @@ function renderCourts(){
 function cancelMatch(courtSlotId) {
     let m = matches.find(x => x.id === courtSlotId);
     if(!m) return;
+    if(!confirm(`Are you sure you want to cancel the active match on Court ${m.court}?`)) return;
 
-    if(!confirm(`Are you sure you want to cancel the active match on Court ${m.court}?`)) {
-        return;
-    }
-
-    if(pairHistory.length > 0) {
-        pairHistory.shift(); 
-    }
+    if(pairHistory.length > 0) pairHistory.shift(); 
 
     if(m.teamA && m.teamA.players) temporaryTeams.push([...m.teamA.players]);
     if(m.teamB && m.teamB.players) temporaryTeams.push([...m.teamB.players]);
 
-    m.teamA = null;
-    m.teamB = null;
-    m.scoreA = "";
-    m.scoreB = "";
-    m.processed = true; 
-    m.winner = null;
+    m.teamA = null; m.teamB = null;
+    m.scoreA = ""; m.scoreB = "";
+    m.processed = true; m.winner = null;
 
-    renderAll();
-    saveState();
+    renderAll(); saveState();
 }
 
 function storeScore(matchId, team, val) {
@@ -684,58 +683,41 @@ function confirmScoreMatch(id){
     let sA = parseInt(document.getElementById(`inputA_${id}`).value);
     let sB = parseInt(document.getElementById(`inputB_${id}`).value);
 
-    if(isNaN(sA) || isNaN(sB)) {
-        alert("Please input scores for both teams before confirming!");
-        return;
-    }
-    if(sA === sB) {
-        alert("Pickleball games cannot end in a tie!");
-        return;
-    }
+    if(isNaN(sA) || isNaN(sB)) { alert("Please input scores for both teams before confirming!"); return; }
+    if(sA === sB) { alert("Pickleball games cannot end in a tie!"); return; }
 
-    m.scoreA = sA;
-    m.scoreB = sB;
+    m.scoreA = sA; m.scoreB = sB;
     m.winner = sA > sB ? 'A' : 'B';
     m.processed = true;
 
-    let teamAPlayers = m.teamA.players;
-    let teamBPlayers = m.teamB.players;
-
     let matchCompletionTime = Date.now();
 
-    teamAPlayers.forEach(pid => {
-        let p = players.find(x => x.id === pid);
-        if(p) {
-            p.games++; p.priorityScore++; p.pointsScored += sA; p.pointsConceded += sB;
-            p.waitingSince = matchCompletionTime; 
-            if(m.winner === 'A') p.wins++; else p.losses++;
-            p.pointDiff = p.pointsScored - p.pointsConceded;
-        }
-    });
+    [m.teamA.players, m.teamB.players].forEach((team, idx) => {
+        let isTeamA = idx === 0;
+        let scoreFor = isTeamA ? sA : sB;
+        let scoreAgainst = isTeamA ? sB : sA;
+        let won = (isTeamA && m.winner === 'A') || (!isTeamA && m.winner === 'B');
 
-    teamBPlayers.forEach(pid => {
-        let p = players.find(x => x.id === pid);
-        if(p) {
-            p.games++; p.priorityScore++; p.pointsScored += sB; p.pointsConceded += sA;
-            p.waitingSince = matchCompletionTime; 
-            if(m.winner === 'B') p.wins++; else p.losses++;
-            p.pointDiff = p.pointsScored - p.pointsConceded;
-        }
+        team.forEach(pid => {
+            let p = players.find(x => x.id === pid);
+            if(p) {
+                p.games++; p.priorityScore++; 
+                p.pointsScored += scoreFor; p.pointsConceded += scoreAgainst;
+                p.waitingSince = matchCompletionTime; 
+                if(won) p.wins++; else p.losses++;
+                p.pointDiff = p.pointsScored - p.pointsConceded;
+            }
+        });
     });
 
     matchHistory.push({
-        id: m.id,
-        court: m.court,
-        teamA: teamAPlayers,
-        teamB: teamBPlayers,
-        scoreA: sA,
-        scoreB: sB,
-        winner: m.winner,
+        id: m.id, court: m.court,
+        teamA: m.teamA.players, teamB: m.teamB.players,
+        scoreA: sA, scoreB: sB, winner: m.winner,
         timestamp: matchCompletionTime
     });
 
-    renderAll();
-    saveState();
+    renderAll(); saveState();
 }
 
 /* ---------------- RENDERING NEXT UP QUEUE ---------------- */
@@ -749,11 +731,8 @@ function renderNextUpQueue(){
     });
 
     let waitingPlayers = players.filter(p => !activePlayerIds.has(p.id) && !p.isResting);
-    
     waitingPlayers.sort((a, b) => {
-        if((a.priorityScore || 0) !== (b.priorityScore || 0)) {
-            return (a.priorityScore || 0) - (b.priorityScore || 0);
-        }
+        if((a.priorityScore || 0) !== (b.priorityScore || 0)) return (a.priorityScore || 0) - (b.priorityScore || 0);
         return (a.waitingSince || 0) - (b.waitingSince || 0);
     });
 
@@ -773,20 +752,14 @@ function renderNextUpQueue(){
 function applyLatePenalty(id) {
     let p = players.find(x => x.id === id);
     if(!p) return;
-
-    if(!confirm(`Are you absolutely sure you want to mark ${p.name} as Late? This resets their priority position to the absolute back of the line.`)){
-        return;
-    }
+    if(!confirm(`Are you absolutely sure you want to mark ${p.name} as Late? This resets their priority position to the absolute back of the line.`)) return;
 
     if(players.length > 1) {
         let maxCurrentPriority = Math.max(...players.map(x => x.priorityScore || 0));
-        
         p.priorityScore = maxCurrentPriority;
         p.waitingSince = Date.now(); 
         p.isLate = true; 
-        
-        renderAll();
-        saveState();
+        renderAll(); saveState();
     }
 }
 
@@ -807,40 +780,27 @@ function toggleRest(id) {
         let activePool = players.filter(x => !x.isResting && x.id !== id);
         if(activePool.length > 0) {
             let minActivePriority = Math.min(...activePool.map(x => x.priorityScore || 0));
-            if(p.priorityScore < minActivePriority) {
-                p.priorityScore = minActivePriority;
-            }
+            if(p.priorityScore < minActivePriority) p.priorityScore = minActivePriority;
         }
     } else {
         temporaryTeams = temporaryTeams.filter(t => !t.includes(id));
     }
 
-    renderAll();
-    saveState();
+    renderAll(); saveState();
 }
 
 function getRawStatus(id) {
     for(let m of matches){
-        if(!m.processed && m.teamA && m.teamB && (m.teamA.players.includes(id)||m.teamB.players.includes(id))){
-            return "court";
-        }
+        if(!m.processed && m.teamA && m.teamB && (m.teamA.players.includes(id)||m.teamB.players.includes(id))) return "court";
     }
     return "waiting";
 }
 
 function getStatusLabelAndAction(p) {
-    if(getRawStatus(p.id) === "court") {
-        return `<td><b>🟢 On Court</b></td>`;
-    }
-    if(p.isResting) {
-        return `<td>🔴 Resting <button class="statusToggleBtn resume" onclick="toggleRest('${p.id}')">▶️ Resume</button></td>`;
-    }
-    
-    if(p.isLate) {
-        return `<td>🟡 Waiting <button class="statusToggleBtn pause" onclick="toggleRest('${p.id}')">⏸️ Pause</button></td>`;
-    }
-
-    return `<td>🟡 Waiting <button class="statusToggleBtn pause" onclick="toggleRest('${p.id}')">⏸️ Pause</button> <button class="statusToggleBtn penalty" onclick="applyLatePenalty('${p.id}')" title="Force to back of line">⚠️ Late</button></td>`;
+    if(getRawStatus(p.id) === "court") return `<td><b>🟢 On Court</b></td>`;
+    if(p.isResting) return `<td style="white-space:nowrap;">🔴 Resting <br><button class="statusToggleBtn resume" onclick="toggleRest('${p.id}')">▶️ Resume</button></td>`;
+    if(p.isLate) return `<td style="white-space:nowrap;">🟡 Waiting <br><button class="statusToggleBtn pause" onclick="toggleRest('${p.id}')">⏸️ Pause</button></td>`;
+    return `<td style="white-space:nowrap;">🟡 Waiting <br><button class="statusToggleBtn pause" onclick="toggleRest('${p.id}')">⏸️ Pause</button> <button class="statusToggleBtn penalty" onclick="applyLatePenalty('${p.id}')">⚠️ Late</button></td>`;
 }
 
 function renderLeader(){
@@ -850,28 +810,25 @@ function renderLeader(){
         if(sortState.key !== 'name') {
             let valA = a[sortState.key] || 0;
             let valB = b[sortState.key] || 0;
-            if(valA === valB) {
-                return sortState.asc ? (a.pointDiff || 0) - (b.pointDiff || 0) : (b.pointDiff || 0) - (a.pointDiff || 0);
-            }
+            if(valA === valB) return sortState.asc ? (a.pointDiff || 0) - (b.pointDiff || 0) : (b.pointDiff || 0) - (a.pointDiff || 0);
             return sortState.asc ? valA - valB : valB - valA;
         }
-        return sortState.asc ? a.name.localeCompare(p.name) : b.name.localeCompare(a.name);
+        return sortState.asc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
     });
 
     document.getElementById("leader").innerHTML=data.map(p=>{
         let rowStyle = p.isLate ? 'style="background-color: #ffebee;"' : '';
-        let displayLeaderboardName = p.name; 
-        let lateColumnContent = p.isLate ? `<span style="color:#d32f2f; font-weight:bold;">🛑 Late</span>` : `<span style="color:#aaa;">-</span>`;
+        let lateColumnContent = p.isLate ? `<span style="color:#d32f2f; font-weight:bold;">🛑</span>` : `-`;
 
         return `
         <tr ${rowStyle}>
-            <td><a href="player.html?id=${p.id}" target="_blank">${displayLeaderboardName}</a></td>
+            <td style="font-weight:bold;"><a href="player.html?id=${p.id}" target="_blank" style="color:#1565c0; text-decoration:none;">${p.name}</a></td>
             <td><b>${p.wins}</b></td>
             <td>${p.losses}</td>
             <td>${p.games}</td>
             <td>${p.pointsScored || 0}</td>
             <td>${p.pointsConceded || 0}</td>
-            <td><span style="color:${(p.pointDiff || 0) >= 0 ? 'green':'red'}">${(p.pointDiff || 0) > 0 ? '+':''}${p.pointDiff || 0}</span></td>
+            <td><span style="color:${(p.pointDiff || 0) >= 0 ? 'green':'red'}; font-weight:bold;">${(p.pointDiff || 0) > 0 ? '+':''}${p.pointDiff || 0}</span></td>
             <td>${lateColumnContent}</td>
             ${getStatusLabelAndAction(p)}
         </tr>`;
@@ -879,41 +836,28 @@ function renderLeader(){
 }
 
 function sort(k){
-    if(sortState.key===k){
-        sortState.asc=!sortState.asc;
-    }else{
-        sortState.key=k;
-        sortState.asc=false;
-    }
-    renderLeader();
-    saveState();
+    if(sortState.key===k) sortState.asc=!sortState.asc;
+    else { sortState.key=k; sortState.asc=false; }
+    renderLeader(); saveState();
 }
 
 /* ---------------- RESET ---------------- */
 function reset(){
     if(!confirm("Are you sure you want to clear all history and statistics?")) return;
-    matches=[];
-    matchHistory=[];
-    temporaryTeams=[];
+    matches=[]; matchHistory=[]; temporaryTeams=[];
     let current_time = Date.now();
     players.forEach(p=>{
-        p.wins=0; p.losses=0; p.games=0;
-        p.pointsScored=0; p.pointsConceded=0; p.pointDiff=0;
+        p.wins=0; p.losses=0; p.games=0; p.pointsScored=0; p.pointsConceded=0; p.pointDiff=0;
         p.isResting = false; p.isLate = false; p.priorityScore = 0; p.waitingSince = current_time;
     });
-    selectedPlayers=[];
-    pairHistory=[];
+    selectedPlayers=[]; pairHistory=[];
     localStorage.removeItem(STORAGE_KEY);
     updateCourtsSetup();
 }
 
 /* ---------------- MASTER RENDER ---------------- */
 function renderAll(){
-    renderPlayers();
-    renderFixedTeams();
-    renderCourts();
-    renderNextUpQueue();
-    renderLeader();
+    renderPlayers(); renderFixedTeams(); renderCourts(); renderNextUpQueue(); renderLeader();
 }
 </script>
 
