@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>KitchenSync - Smart Pickleball System(v6.4.2026.1050)</title>
+<title>KitchenSync - Smart Pickleball System(v6.5.2026.904)</title>
 
 <style>
 /* Universal Box Sizing to prevent width overflow */
@@ -20,6 +20,15 @@ body {
 }
 
 h2, h3, h4 { margin-top: 0; }
+
+.header-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 15px;
+}
 
 .infoBox {
     background: #f5f5f5;
@@ -138,6 +147,11 @@ button:hover { background: #e0e0e0; }
 .actionBtn:hover { background: #1b5e20; }
 .startMatchBtn { background: #1565c0; color: white; border: none; padding: 12px; width: 100%; font-size: 15px; }
 .startMatchBtn:hover { background: #0d47a1; }
+.duoBtn { background: #6200ea; color: white; border: none; }
+.duoBtn:hover { background: #4a00b0; }
+.hardResetBtn { background: #c62828; color: white; border: none; }
+.hardResetBtn:hover { background: #b71c1c; }
+.softResetBtn { background: #fff; color: #1565c0; border: 1px solid #1565c0; }
 
 .cancelBtn { background: #fff; color: #c62828; border: 1px solid #c62828; margin-top: 8px; }
 .cancelBtn:hover { background: #ffebee; }
@@ -210,7 +224,11 @@ tr:nth-child(even) { background: #fafafa; }
 
 <body>
 
-<h2>🏓 KitchenSync</h2>
+<div class="header-container">
+	<h2>🏓 KitchenSync (Round Robin)</h2>
+    <button class="hardResetBtn" onclick="hardReset()">⚠️ Hard Reset (Wipe All)</button>
+</div>
+
 
 <div class="infoBox">
     <div style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">✨ System Features:</div>
@@ -223,32 +241,32 @@ tr:nth-child(even) { background: #fafafa; }
 </div>
 
 <div class="card">
-    <h4>Add Single Player</h4>
+    <h4>Add New Players</h4>
     <div class="input-group">
-        <input type="text" id="playerName" placeholder="Enter player name" onkeydown="if(event.key==='Enter') addPlayer()">
+        <input type="text" id="playerName" placeholder="Enter single player name" onkeydown="if(event.key==='Enter') addPlayer()">
         <button class="actionBtn" onclick="addPlayer()">Add Player</button>
     </div>
     
-    <h4 style="margin-top: 15px;">Bulk Add Players (One per line)</h4>
-    <div class="input-group" style="flex-direction: column; align-items: stretch;">
-        <textarea id="bulkPlayerNames" placeholder="Player A&#10;Player B" style="width: 100%; min-height: 90px; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-family: inherit;"></textarea>
-        <button class="actionBtn" onclick="addPlayersBulk()" style="margin-top: 8px; width: 100%;">Add Bulk Players</button>
+    <div class="input-group" style="flex-direction: column; align-items: stretch; margin-top: 10px;">
+        <textarea id="bulkPlayerNames" placeholder="Bulk Add (One name per line)" style="width: 100%; min-height: 60px; padding: 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; resize: vertical; font-family: inherit;"></textarea>
+        <button class="actionBtn" onclick="addPlayersBulk()" style="margin-top: 4px; width: 100%;">Add Bulk Players</button>
     </div>
 
-    <div id="players" style="margin-top: 15px;"></div>
-
-    <hr style="border:0; border-top:1px solid #eee; margin:15px 0;">
-    <h4>Fixed Teams</h4>
+    <h4 style="margin-top: 20px;">Form Fixed Team</h4>
+    <div class="input-group">
+        <button class="duoBtn" onclick="createTeam()" style="width: 100%;">🔗 Lock Fixed Team (Select 2 in roster below)</button>
+    </div>
+    
     <div id="fixedTeams"></div>
-    <button onclick="createTeam()" style="width: 100%; margin-top: 8px;">Create Fixed Team (Select 2)</button>
+    <div id="players" style="margin-top: 15px;"></div>
 </div>
 
 <div class="card">
     <div class="input-group">
         <span style="font-weight:bold; line-height: 38px;">Total Courts:</span>
         <input type="number" id="courtCount" value="2" min="1" style="max-width: 80px; text-align: center;">
-        <button class="actionBtn" onclick="updateCourtsSetup()">Update</button>
-        <button onclick="reset()">Reset System</button>
+        <button class="actionBtn" onclick="updateCourtsSetup()">Update Courts</button>
+        <button class="softResetBtn" onclick="resetSystemOnly()">🔄 Reset System (Keep Players)</button>
     </div>
 </div>
 
@@ -787,10 +805,22 @@ function sort(k, event){
     renderLeader(); saveState();
 }
 
-function reset(){
-    if(!confirm("Clear all history?")) return;
-    matches=[]; players.forEach(p=>{ p.wins=0; p.losses=0; p.games=0; p.pointsScored=0; p.pointsConceded=0; p.pointDiff=0; p.isResting = false; p.isLate = false; p.priorityScore = 0; p.waitingSince = Date.now(); });
-    localStorage.removeItem(STORAGE_KEY); updateCourtsSetup();
+function resetSystemOnly() {
+    if(!confirm("Soft Reset: Keep your player roster, but wipe all stats, active courts, and match history?")) return;
+    players.forEach(p => {
+        p.wins = 0; p.losses = 0; p.games = 0; p.pointsScored = 0; p.pointsConceded = 0; p.pointDiff = 0;
+        p.isResting = false; p.isLate = false; p.priorityScore = 0; p.waitingSince = Date.now();
+    });
+    pairHistory = [];
+    matchHistory = [];
+    updateCourtsSetup();
+}
+
+function hardReset() {
+    if(!confirm("🚨 HARD RESET: This will delete ALL players, stats, and matches. This cannot be undone! Proceed?")) return;
+    players = []; fixedTeams = []; selectedPlayers = []; matches = []; pairHistory = []; matchHistory = []; temporaryTeams = [];
+    localStorage.removeItem(STORAGE_KEY);
+    updateCourtsSetup();
 }
 
 function renderAll(){ renderPlayers(); renderFixedTeams(); renderCourts(); renderNextUpQueue(); renderLeader(); }
