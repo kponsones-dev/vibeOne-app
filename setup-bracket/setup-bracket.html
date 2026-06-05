@@ -266,9 +266,20 @@ tr:nth-child(even) { background: #fafafa; }
     </div>
 
     <div id="players" style="margin-top: 15px;"></div>
-    <button class="engineBtn" onclick="resetPoolsToNeutral()">🔄 Reset All Pools to Neutral</button>
+    <!-- 🔄 The reset button has been removed from here -->
 </div>
 
+<!-- 🏟️ Total Courts card has been moved ABOVE the Live Waiting Pools -->
+<div class="card">
+    <div class="input-group">
+        <span style="font-weight:bold; line-height: 38px;">Total Courts:</span>
+        <input type="number" id="courtCount" value="1" min="1" style="max-width: 80px; text-align: center;">
+        <button class="actionBtn" onclick="updateCourtsSetup()">Update Courts</button>
+        <button class="softResetBtn" onclick="resetSystemOnly()">🔄 Reset System (Keep Players)</button>
+    </div>
+</div>
+
+<!-- 📊 Live Waiting Pools card has been moved BELOW the Total Courts -->
 <div class="card">
     <h3>📊 Live Waiting Pools (Ready for Matches)</h3>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
@@ -285,15 +296,9 @@ tr:nth-child(even) { background: #fafafa; }
             <div id="neutralPoolList" style="margin-top: 5px; font-size: 14px; font-weight: bold;"></div>
         </div>
     </div>
-</div>
-
-<div class="card">
-    <div class="input-group">
-        <span style="font-weight:bold; line-height: 38px;">Total Courts:</span>
-        <input type="number" id="courtCount" value="1" min="1" style="max-width: 80px; text-align: center;">
-        <button class="actionBtn" onclick="updateCourtsSetup()">Update Courts</button>
-        <button class="softResetBtn" onclick="resetSystemOnly()">🔄 Reset System (Keep Players)</button>
-    </div>
+    
+    <!-- 🔄 The reset button has been relocated here inside the Live Pools card -->
+    <button class="engineBtn" onclick="resetPoolsToNeutral()">🔄 Reset All Pools to Neutral</button>
 </div>
 
 <h3>🏟️ Active Courts</h3>
@@ -551,10 +556,25 @@ function getRawStatus(id) {
 }
 
 function resetPoolsToNeutral() {
-    if(!confirm("Reset everyone back to the Neutral Pool? Upcoming queued matches will clear.")) return;
+    if(!confirm("Reset everyone back to the Neutral Pool? Active matches and upcoming queues will be cleared.")) return;
+    
+    // 1. Reset all players back to the Neutral Pool
     players.forEach(p => p.pool = 'neutral');
+    
+    // 2. Clear the upcoming queue completely
     tournamentMatches = [];
-    autoMatchmaker(); renderAll(); saveState();
+    
+    // 3. Clear all active courts (kick players off so they are eligible for the new queue)
+    matches.forEach(m => {
+        m.teamA = null; 
+        m.teamB = null; 
+        m.processed = true; 
+    });
+    
+    // 4. Re-run the matchmaker and refresh the screen
+    autoMatchmaker(); 
+    renderAll(); 
+    saveState();
 }
 
 /* ---------------- RESETS ---------------- */
@@ -581,8 +601,22 @@ function hardReset() {
 function autoMatchmaker() {
     let freePlayers = players.filter(p => !p.isResting && getRawStatus(p.id) === "waiting");
     
+    // 1. Shuffle the array first to establish a randomized base order
+    freePlayers.sort(() => Math.random() - 0.5);
+
+    // 2. Apply the matchmaking sorting rules
     freePlayers.sort((a, b) => {
-        if((a.priorityScore || 0) !== (b.priorityScore || 0)) return (a.priorityScore || 0) - (b.priorityScore || 0);
+        // Rule A: Priority Score (players with the fewest games played go first)
+        if ((a.priorityScore || 0) !== (b.priorityScore || 0)) {
+            return (a.priorityScore || 0) - (b.priorityScore || 0);
+        }
+        
+        // Rule B: If both players have 0 priority (start of session / 0 games played), keep them randomized
+        if ((a.priorityScore || 0) === 0) {
+            return 0; 
+        }
+        
+        // Rule C: Once they've played games, queue them fairly by who has been waiting the longest
         return (a.waitingSince || 0) - (b.waitingSince || 0);
     });
 
@@ -591,58 +625,77 @@ function autoMatchmaker() {
             ? freePlayers.filter(p => p.pool === 'winner')
             : freePlayers.filter(p => p.pool === 'loser' || p.pool === 'neutral');
         
-        let duoGroups = {};
-        let solos = [];
-        
-        poolPlayers.forEach(p => {
-            if (p.duoId) {
-                if (!duoGroups[p.duoId]) duoGroups[p.duoId] = [];
-                duoGroups[p.duoId].push(p);
-            } else {
-                solos.push(p);
-            }
-        });
-        
-        let readyDuos = [];
-        for (let dId in duoGroups) {
-            if (duoGroups[dId].length === 2) {
-                readyDuos.push(duoGroups[dId]); 
-            } else {
-                solos.push(...duoGroups[dId]);
-            }
-        }
-        
         let poolLabel = poolType === 'winner' ? '🏆 Winners' : '📉 Losers/Neutral';
 
-        while (readyDuos.length >= 2) {
-            let dA = readyDuos.shift();
-            let dB = readyDuos.shift();
-            tournamentMatches.push({
-                id: generateID(), type: `${poolLabel} Tier (Duo vs Duo)`,
-                teamA: { players: [dA[0].id, dA[1].id] },
-                teamB: { players: [dB[0].id, dB[1].id] }
-            });
-        }
-        
-        while (readyDuos.length >= 1 && solos.length >= 2) {
-            let dA = readyDuos.shift();
-            let s1 = solos.shift();
-            let s2 = solos.shift();
-            tournamentMatches.push({
-                id: generateID(), type: `${poolLabel} Tier (Duo vs Solos)`,
-                teamA: { players: [dA[0].id, dA[1].id] },
-                teamB: { players: [s1.id, s2.id] }
-            });
-        }
-        
-        while (solos.length >= 4) {
-            let s1 = solos.shift(); let s2 = solos.shift();
-            let s3 = solos.shift(); let s4 = solos.shift();
-            tournamentMatches.push({
-                id: generateID(), type: `${poolLabel} Tier (Solos Scramble)`,
-                teamA: { players: [s1.id, s2.id] },
-                teamB: { players: [s3.id, s4.id] }
-            });
+        // 1. Group players into queue "entities" (Solos or Duos) to preserve exact line order
+        let queueEntities = [];
+        let seenDuos = new Set();
+
+        poolPlayers.forEach(p => {
+            if (p.duoId) {
+                if (!seenDuos.has(p.duoId)) {
+                    seenDuos.add(p.duoId);
+                    let partner = poolPlayers.find(x => x.duoId === p.duoId && x.id !== p.id);
+                    if (partner) queueEntities.push({ type: 'duo', players: [p, partner] });
+                }
+            } else {
+                queueEntities.push({ type: 'solo', players: [p] });
+            }
+        });
+
+        // 2. Build matches strictly by pulling from the front of the combined queue
+        while (queueEntities.length > 0) {
+            let matchPlayers = [];
+            let matchEntities = [];
+            let skippedEntities = [];
+
+            // Fill a 4-player match bucket
+            while (matchPlayers.length < 4 && queueEntities.length > 0) {
+                let next = queueEntities.shift();
+                
+                if (matchPlayers.length + next.players.length <= 4) {
+                    // They fit on the court! Add them to the match.
+                    matchEntities.push(next);
+                    matchPlayers.push(...next.players);
+                } else {
+                    // Cannot fit a 2-player Duo into a 1-player slot. Skip them for now.
+                    skippedEntities.push(next);
+                }
+            }
+
+            // Put any skipped Duos back at the VERY FRONT of the line for the next court
+            queueEntities = skippedEntities.concat(queueEntities);
+
+            // 3. If we successfully gathered 4 players, assign teams
+            if (matchPlayers.length === 4) {
+                let duos = matchEntities.filter(e => e.type === 'duo');
+                let solos = matchEntities.filter(e => e.type === 'solo');
+
+                if (duos.length === 2) {
+                    tournamentMatches.push({
+                        id: generateID(), type: `${poolLabel} Tier (Duo vs Duo)`,
+                        teamA: { players: [duos[0].players[0].id, duos[0].players[1].id] },
+                        teamB: { players: [duos[1].players[0].id, duos[1].players[1].id] }
+                    });
+                } else if (duos.length === 1 && solos.length === 2) {
+                    tournamentMatches.push({
+                        id: generateID(), type: `${poolLabel} Tier (Duo vs Solos)`,
+                        teamA: { players: [duos[0].players[0].id, duos[0].players[1].id] },
+                        teamB: { players: [solos[0].players[0].id, solos[1].players[0].id] }
+                    });
+                } else if (solos.length === 4) {
+                    // Scramble the 4 solos so teammates are randomized
+                    let s = [...solos].sort(() => Math.random() - 0.5); 
+                    tournamentMatches.push({
+                        id: generateID(), type: `${poolLabel} Tier (Solos Scramble)`,
+                        teamA: { players: [s[0].players[0].id, s[1].players[0].id] },
+                        teamB: { players: [s[2].players[0].id, s[3].players[0].id] }
+                    });
+                }
+            } else {
+                // Not enough players to form a full 4-person match in this pool. Stop checking.
+                break; 
+            }
         }
     });
 }
