@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>KitchenSync - Smart Pickleball System(v6.5.2026.904)</title>
+<title>KitchenSync - Smart Pickleball System(v6.6.2026.748)</title>
 
 <style>
 /* Universal Box Sizing to prevent width overflow */
@@ -532,12 +532,25 @@ function isValidPair(a,b){
 
 function smartPairing(rest){
     let pool = [...rest];
-    pool.sort((a, b) => {
-        let pa = players.find(p => p.id === a);
-        let pb = players.find(p => p.id === b);
-        if((pa?.priorityScore || 0) !== (pb?.priorityScore || 0)) return (pa?.priorityScore || 0) - (pb?.priorityScore || 0);
-        return (pa?.waitingSince || 0) - (pb?.waitingSince || 0);
-    });
+
+	// 1. First, randomly shuffle the pool
+	for (let i = pool.length - 1; i > 0; i--) {
+		const j = Math.floor(Math.random() * (i + 1));
+		[pool[i], pool[j]] = [pool[j], pool[i]];
+	}
+
+	// 2. Then sort by priority (fewer games) and wait time
+	pool.sort((a, b) => {
+		let pa = players.find(p => p.id === a);
+		let pb = players.find(p => p.id === b);
+		
+		// Sort by fewest games first
+		if((pa?.priorityScore || 0) !== (pb?.priorityScore || 0)) {
+			return (pa?.priorityScore || 0) - (pb?.priorityScore || 0);
+		}
+		// If games are tied, sort by longest wait time
+		return (pa?.waitingSince || 0) - (pb?.waitingSince || 0);
+	});
 
     let result = [];
     while(pool.length >= 2){
@@ -629,7 +642,6 @@ function updateSingleMatchHistory(playingTeams){
     playingTeams.forEach(t=>{ round.push(t.players[0]+"|"+t.players[1]); });
     if (round.length > 0) {
         pairHistory.unshift(round);
-        if(pairHistory.length > 15) pairHistory.length = 15;
     }
 }
 
@@ -680,9 +692,33 @@ function confirmScoreMatch(id){
     let sA = parseInt(document.getElementById(`inputA_${id}`).value);
     let sB = parseInt(document.getElementById(`inputB_${id}`).value);
 
-    if(isNaN(sA) || isNaN(sB)) { alert("Input scores!"); return; }
+    if(isNaN(sA) || isNaN(sB)) { alert("Please input scores for both teams!"); return; }
+    if (sA < 0 || sB < 0) { alert("Invalid Score: Scores cannot be negative."); return; }
+    if (sA === sB) { alert("Invalid Score: A pickleball match cannot end in a tie."); return; }
+    let pointDiff = Math.abs(sA - sB);
+    if (pointDiff < 2) { alert(`Invalid Score: You must win by at least 2 points. (Current difference is only ${pointDiff})`); return; }
+    let maxScore = Math.max(sA, sB);
+    if (maxScore < 11) {
+        let proceed = confirm(`Standard pickleball games are played to 11 points (The current highest score is ${maxScore}). \n\nAre you playing a shortened game? Click 'OK' to proceed or 'Cancel' to fix the score.`);
+        if (!proceed) return;
+    }
+
     m.scoreA = sA; m.scoreB = sB; m.winner = sA > sB ? 'A' : 'B'; m.processed = true;
     let time = Date.now();
+
+    // --- NEW LOGIC: SAVE TO MATCH HISTORY ---
+    // player.html expects teamA and teamB to be arrays of IDs.
+    matchHistory.push({
+        id: crypto.randomUUID(),
+        court: m.court,
+        teamA: [...m.teamA.players], // Extracts just the array of IDs
+        teamB: [...m.teamB.players],
+        scoreA: m.scoreA,
+        scoreB: m.scoreB,
+        winner: m.winner,
+        timestamp: time
+    });
+    // ----------------------------------------
 
     [m.teamA.players, m.teamB.players].forEach((team, idx) => {
         let isTeamA = idx === 0; let won = (isTeamA && m.winner === 'A') || (!isTeamA && m.winner === 'B');
@@ -807,12 +843,21 @@ function sort(k, event){
 
 function resetSystemOnly() {
     if(!confirm("Soft Reset: Keep your player roster, but wipe all stats, active courts, and match history?")) return;
+    
+    // 1. Reset all player stats and queue times
     players.forEach(p => {
         p.wins = 0; p.losses = 0; p.games = 0; p.pointsScored = 0; p.pointsConceded = 0; p.pointDiff = 0;
         p.isResting = false; p.isLate = false; p.priorityScore = 0; p.waitingSince = Date.now();
     });
+    
+    // 2. Wipe history
     pairHistory = [];
     matchHistory = [];
+    
+    // 3. NEW: Wipe the active matches/courts before rebuilding them
+    matches = []; 
+    
+    // 4. Rebuild the empty courts and save
     updateCourtsSetup();
 }
 
