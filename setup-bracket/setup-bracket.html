@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>KitchenSync - Smart Pickleball System(v6.6.2026.2301)</title>
+<title>KitchenSync - Smart Pickleball System(v6.6.2026.2333)</title>
 
 <style>
 * { box-sizing: border-box; }
@@ -238,7 +238,12 @@ tr:nth-child(even) { background: #fafafa; }
         <li>👤 <b>Player Profiles:</b> Click any player's name in the leaderboard to open their performance sheet.</li>
         <li>🤖 <b>Auto-Matchmaker:</b> Automatically generates matches based on priority (fewest games played & longest wait time). Intelligently mixes Solos and Fixed Duos.</li>
         <li>🎱 <b>Dynamic Pools:</b> Match winners advance to the 🏆 Winners pool. Losers drop to the 📉 Losers pool, which gets pooled right alongside the ⚪ Neutral players for matchmaking.</li>
-        <li>👥 <b>Fixed Duos:</b> Lock pairs together. They queue as a single unit, and pausing/resuming one instantly syncs their partner's state.</li>
+        <li>👥 <b>Fixed Duos:</b> Lock pairs together to queue as a single unit. Pausing/resuming syncs both partners.
+            <ul style="margin-top: 4px; margin-bottom: 4px; color: #444; font-size: 13px;">
+                <li><i><b>Active Courts:</b> You cannot link players if either is currently playing on a court.</i></li>
+                <li><i><b>Upcoming Queue:</b> Linking players who are waiting in the queue will instantly dissolve their pending matches and run the matchmaker to rebuild the queue!</i></li>
+            </ul>
+        </li>
         <li>🔀 <b>Court Controls:</b> When 4 solo players occupy a court, you can shuffle or manually swap partners directly inside the active court card!</li>
     </ul>
 </div>
@@ -467,6 +472,39 @@ function createDuoTeam() {
     if(!p1Id || !p2Id) { alert("Select two distinct players!"); return; }
     if(p1Id === p2Id) { alert("A player cannot form a team with themselves."); return; }
 
+    let stat1 = getRawStatus(p1Id);
+    let stat2 = getRawStatus(p2Id);
+
+    // 1. STRICTLY BLOCK if either player is on an active court
+    if (stat1 === "court" || stat2 === "court") {
+        alert("Cannot link players who are actively playing on a court. Wait for their match to finish or cancel it.");
+        return;
+    }
+
+    // 2. NEW LOGIC: If they are in the queue, break their upcoming matches down
+    if (stat1 === "queued" || stat2 === "queued") {
+        // Find the upcoming matches that contain either player
+        let affectedMatches = tournamentMatches.filter(m => 
+            m.teamA.players.includes(p1Id) || m.teamB.players.includes(p1Id) ||
+            m.teamA.players.includes(p2Id) || m.teamB.players.includes(p2Id)
+        );
+
+        // Remove those affected matches from the upcoming queue
+        tournamentMatches = tournamentMatches.filter(m => !affectedMatches.includes(m));
+
+        // Boost the priority of the "collateral damage" players
+        // so they don't get punished by losing their spot in line.
+        affectedMatches.forEach(m => {
+            [...m.teamA.players, ...m.teamB.players].forEach(id => {
+                if (id !== p1Id && id !== p2Id) {
+                    let p = players.find(x => x.id === id);
+                    if (p) p.priorityScore += 50; 
+                }
+            });
+        });
+    }
+
+    // 3. Link the duo
     let dId = "duo-" + generateID();
     let p1 = players.find(x => x.id === p1Id);
     let p2 = players.find(x => x.id === p2Id);
@@ -474,6 +512,7 @@ function createDuoTeam() {
     if(p1 && p2) {
         p1.duoId = dId; p2.duoId = dId;
         
+        // Reconcile pools if they are mismatched
         let getMatchPool = (p) => p.pool === 'winner' ? 'winner' : 'loser_neutral';
         if (getMatchPool(p1) !== getMatchPool(p2)) {
             p1.pool = 'neutral';
@@ -481,6 +520,8 @@ function createDuoTeam() {
         }
         p1.isResting = false; p2.isResting = false;
     }
+
+    // 4. Run the matchmaker instantly to rebuild the destroyed queues and slot the new duo
     autoMatchmaker(); renderAll(); saveState();
 }
 
