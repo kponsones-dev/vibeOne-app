@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>KitchenSync - Smart Pickleball System(v6.6.2026.748)</title>
+<title>KitchenSync - Smart Pickleball System(v6.6.2026.2346)</title>
 
 <style>
 /* Universal Box Sizing to prevent width overflow */
@@ -234,7 +234,11 @@ tr:nth-child(even) { background: #fafafa; }
     <div style="font-weight: bold; margin-bottom: 8px; font-size: 15px;">✨ System Features:</div>
     • <b>Asynchronous Courts:</b> Manage matches independently.<br>
     • <b>Smart Matchmaking:</b> Prioritizes longest wait times & fewest games.<br>
-    • <b>Fixed Teams:</b> Lock specific pairs of players together.<br>
+    • <b>Fixed Teams:</b> Lock specific pairs of players together.
+        <ul style="margin-top: 4px; margin-bottom: 4px; color: #444; font-size: 13px; padding-left: 24px;">
+            <li><i><b>Active Courts:</b> You cannot link players if either is currently playing on a court.</i></li>
+            <li><i><b>Waiting Queue:</b> If players are waiting in the queue, linking them will instantly lock them together for the next available court!</i></li>
+        </ul>
     • <b>Rest Mode:</b> Pause players without losing their stats.<br>
     • ⚠️ <b>Late Penalty:</b> Force late players to the back of the queue.<br>
     • 📊 <b>Multi-Column Sort:</b> Turn on "Multi-Sort Mode" below or hold <b>Shift</b> on desktop to chain columns.
@@ -498,8 +502,22 @@ function createTeam(){
         alert("Select exactly 2 players first!");
         return;
     }
+
+    let p1Id = selectedPlayers[0];
+    let p2Id = selectedPlayers[1];
+
+    // 1. STRICTLY BLOCK if either player is on an active court
+    if (getRawStatus(p1Id) === "court" || getRawStatus(p2Id) === "court") {
+        alert("Cannot link players who are actively playing on a court. Wait for their match to finish or cancel it.");
+        return;
+    }
+
+    // 2. Form the team. 
+    // (Since matches are generated on-demand when "Start Match" is clicked, 
+    // there are no upcoming queues to break. They simply wait as a pair now.)
     fixedTeams.push([...selectedPlayers]);
     selectedPlayers=[];
+    
     renderAll();
     saveState();
 }
@@ -736,16 +754,68 @@ function confirmScoreMatch(id){
 /* ---------------- RENDERING NEXT UP QUEUE ---------------- */
 function renderNextUpQueue(){
     let activePlayerIds = new Set();
-    matches.forEach(m => { if(!m.processed && m.teamA && m.teamB) { m.teamA.players.forEach(id => activePlayerIds.add(id)); m.teamB.players.forEach(id => activePlayerIds.add(id)); } });
+    matches.forEach(m => { 
+        if(!m.processed && m.teamA && m.teamB) { 
+            m.teamA.players.forEach(id => activePlayerIds.add(id)); 
+            m.teamB.players.forEach(id => activePlayerIds.add(id)); 
+        } 
+    });
 
     let waitingPlayers = players.filter(p => !activePlayerIds.has(p.id) && !p.isResting);
+    
+    // Sort players by priority and wait time
     waitingPlayers.sort((a, b) => {
         if((a.priorityScore || 0) !== (b.priorityScore || 0)) return (a.priorityScore || 0) - (b.priorityScore || 0);
         return (a.waitingSince || 0) - (b.waitingSince || 0);
     });
 
-    if(waitingPlayers.length === 0) { document.getElementById("nextUpQueue").innerHTML = "<em>No players waiting.</em>"; return; }
-    document.getElementById("nextUpQueue").innerHTML = waitingPlayers.map((p, idx) => `<span class="queueBadge${p.isLate?' lateBadge':''}">#${idx + 1} ${p.name} (${p.games} gms)</span>`).join(" ");
+    if(waitingPlayers.length === 0) { 
+        document.getElementById("nextUpQueue").innerHTML = "<em>No players waiting.</em>"; 
+        return; 
+    }
+
+    let queueHtml = [];
+    let processedIds = new Set();
+    let queuePosition = 1;
+
+    waitingPlayers.forEach(p => {
+        // Skip this player if they were already rendered as someone's partner
+        if (processedIds.has(p.id)) return;
+
+        // Check if player is in a fixed team
+        let duoTeam = fixedTeams.find(t => t.includes(p.id));
+        let partnerId = duoTeam ? duoTeam.find(id => id !== p.id) : null;
+        
+        // Verify the partner is ALSO currently waiting in the queue
+        let partner = partnerId ? waitingPlayers.find(x => x.id === partnerId) : null;
+
+        if (partner && !processedIds.has(partner.id)) {
+            // Render as a combined Duo Badge (Purple background)
+            let isLate = p.isLate || partner.isLate;
+            queueHtml.push(
+                `<span class="queueBadge ${isLate ? 'lateBadge' : ''}" style="background: #6200ea;">` + 
+                `#${queuePosition} 🔗 ${p.name} (${p.games} gms) + ${partner.name} (${partner.games} gms)` + 
+                `</span>`
+            );
+            
+            // Mark both players as processed so they aren't printed again
+            processedIds.add(p.id);
+            processedIds.add(partner.id);
+        } else {
+            // Render as a Solo Badge (Standard Orange background)
+            queueHtml.push(
+                `<span class="queueBadge ${p.isLate ? 'lateBadge' : ''}">` + 
+                `#${queuePosition} ${p.name} (${p.games} gms)` + 
+                `</span>`
+            );
+            processedIds.add(p.id);
+        }
+        
+        // Increment the display number
+        queuePosition++;
+    });
+
+    document.getElementById("nextUpQueue").innerHTML = queueHtml.join(" ");
 }
 
 function applyLatePenalty(id) {
