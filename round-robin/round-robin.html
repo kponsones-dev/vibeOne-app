@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>KitchenSync - Smart Pickleball System(v6.6.2026.2346)</title>
+<title>KitchenSync - Smart Pickleball System(v6.7.2026.0040)</title>
 
 <style>
 /* Universal Box Sizing to prevent width overflow */
@@ -238,10 +238,12 @@ tr:nth-child(even) { background: #fafafa; }
         <ul style="margin-top: 4px; margin-bottom: 4px; color: #444; font-size: 13px; padding-left: 24px;">
             <li><i><b>Active Courts:</b> You cannot link players if either is currently playing on a court.</i></li>
             <li><i><b>Waiting Queue:</b> If players are waiting in the queue, linking them will instantly lock them together for the next available court!</i></li>
+            <li><i><b>Fairness:</b> To prevent line-cutting, Duos inherit the wait-time of the partner who most recently finished a game.</i></li>
         </ul>
     • <b>Rest Mode:</b> Pause players without losing their stats.<br>
     • ⚠️ <b>Late Penalty:</b> Force late players to the back of the queue.<br>
-    • 📊 <b>Multi-Column Sort:</b> Turn on "Multi-Sort Mode" below or hold <b>Shift</b> on desktop to chain columns.
+    • 📊 <b>Multi-Column Sort:</b> Turn on "Multi-Sort Mode" below or hold <b>Shift</b> on desktop to chain columns.<br>
+    • 🔀 <b>Court Controls:</b> When 4 solo players occupy a court, you can shuffle or manually swap partners directly inside the active court card!
 </div>
 
 <div class="card">
@@ -513,8 +515,6 @@ function createTeam(){
     }
 
     // 2. Form the team. 
-    // (Since matches are generated on-demand when "Start Match" is clicked, 
-    // there are no upcoming queues to break. They simply wait as a pair now.)
     fixedTeams.push([...selectedPlayers]);
     selectedPlayers=[];
     
@@ -607,52 +607,65 @@ function startMatch(courtSlotId) {
     let candidateTeams = [];
     let usedInPreMade = new Set();
 
+    // 1. Process Fixed Teams First
     fixedTeams.forEach(t => {
         if(availableIds.includes(t[0]) && availableIds.includes(t[1]) && !usedInPreMade.has(t[0]) && !usedInPreMade.has(t[1])) {
-            let p1 = players.find(p => p.id === t[0]); let p2 = players.find(p => p.id === t[1]);
+            let p1 = players.find(p => p.id === t[0]); 
+            let p2 = players.find(p => p.id === t[1]);
             candidateTeams.push({
                 players: [t[0], t[1]],
                 avgPriority: ((p1.priorityScore || 0) + (p2.priorityScore || 0)) / 2,
-                oldestWait: Math.min(p1.waitingSince || 0, p2.waitingSince || 0),
+                // Math.max grabs the NEWEST timestamp. 
+                // This forces the Duo to wait based on whoever played most recently (prevents line-cutting).
+                waitValue: Math.max(p1.waitingSince || 0, p2.waitingSince || 0),
                 isPreMade: true 
             });
             usedInPreMade.add(t[0]); usedInPreMade.add(t[1]);
         }
     });
 
+    // 2. Process Solos
     let rest = availableIds.filter(id => !usedInPreMade.has(id));
     let pairs = smartPairing(rest);
 
     pairs.forEach(p => {
-        let p1 = players.find(x => x.id === p.players[0]); let p2 = players.find(x => x.id === p.players[1]);
+        let p1 = players.find(x => x.id === p.players[0]); 
+        let p2 = players.find(x => x.id === p.players[1]);
         candidateTeams.push({
             players: p.players,
             avgPriority: ((p1?.priorityScore || 0) + (p2?.priorityScore || 0)) / 2,
-            oldestWait: Math.min(p1?.waitingSince || 0, p2?.waitingSince || 0),
+            waitValue: Math.max(p1?.waitingSince || 0, p2?.waitingSince || 0), // Applies same fairness math to solos
             isPreMade: false
         });
     });
 
     if(candidateTeams.length < 2) { alert("Not enough active, waiting players!"); return; }
 
+    // 3. Sort logic: Fewest games -> PreMade Priority -> Longest Wait Time
     candidateTeams.sort((a, b) => {
         if(a.avgPriority !== b.avgPriority) return a.avgPriority - b.avgPriority;
         if(a.isPreMade !== b.isPreMade) return a.isPreMade ? -1 : 1; 
-        return a.oldestWait - b.oldestWait;
+        return a.waitValue - b.waitValue;
     });
 
-    let selectedTeamA = candidateTeams[0]; let selectedTeamB = null;
+    let selectedTeamA = candidateTeams[0]; 
+    let selectedTeamB = null;
     for(let i = 1; i < candidateTeams.length; i++) {
-        if(!candidateTeams[i].players.some(id => selectedTeamA.players.includes(id))) { selectedTeamB = candidateTeams[i]; break; }
+        if(!candidateTeams[i].players.some(id => selectedTeamA.players.includes(id))) { 
+            selectedTeamB = candidateTeams[i]; 
+            break; 
+        }
     }
 
     if(!selectedTeamB) return;
 
-    m.teamA = { players: selectedTeamA.players }; m.teamB = { players: selectedTeamB.players };
+    m.teamA = { players: selectedTeamA.players }; 
+    m.teamB = { players: selectedTeamB.players };
     m.scoreA = ""; m.scoreB = ""; m.processed = false; m.winner = null;
 
     updateSingleMatchHistory([selectedTeamA, selectedTeamB]);
-    renderAll(); saveState();
+    renderAll(); 
+    saveState();
 }
 
 function updateSingleMatchHistory(playingTeams){
@@ -682,9 +695,26 @@ function renderCourts(){
         let teamANames = m.teamA.players.map(id=>players.find(p=>p.id===id)?.name).join(" & ");
         let teamBNames = m.teamB.players.map(id=>players.find(p=>p.id===id)?.name).join(" & ");
 
+        // Check if any pair on this court belongs to a fixed team together
+        let allPlayers = [...m.teamA.players, ...m.teamB.players];
+        let hasFixedTeamOnCourt = fixedTeams.some(team => 
+            allPlayers.includes(team[0]) && allPlayers.includes(team[1])
+        );
+
+        let shuffleSwapHtml = "";
+        if (!hasFixedTeamOnCourt) {
+            shuffleSwapHtml = `
+                <div style="display: flex; gap: 6px; margin-top: 5px; margin-bottom: 12px;">
+                    <button onclick="shuffleLiveCourt('${m.id}')" style="flex: 1; padding: 6px; font-size: 12px; background: #e0f2f1; color: #004d40; border: 1px solid #004d40; border-radius: 4px;">🔀 Shuffle</button>
+                    <button onclick="swapLiveCourt('${m.id}')" style="flex: 1; padding: 6px; font-size: 12px; background: #e8eaf6; color: #1a237e; border: 1px solid #1a237e; border-radius: 4px;">🔄 Swap Partners</button>
+                </div>
+            `;
+        }
+
         return `<div class="court"><b>Court ${m.court}</b> <span style="float:right; color:green; font-weight:bold; font-size:12px;">🔴 LIVE</span><hr>
             <div class="score-row"><div><strong>Team A:</strong><br>${teamANames}</div><div><input type="number" class="scoreInput" id="inputA_${m.id}" value="${m.scoreA}" onchange="storeScore('${m.id}', 'A', this.value)"></div></div><hr>
             <div class="score-row"><div><strong>Team B:</strong><br>${teamBNames}</div><div><input type="number" class="scoreInput" id="inputB_${m.id}" value="${m.scoreB}" onchange="storeScore('${m.id}', 'B', this.value)"></div></div>
+            ${shuffleSwapHtml}
             <button class="actionBtn" style="width: 100%; padding: 12px; margin-bottom: 8px;" onclick="confirmScoreMatch('${m.id}')">Confirm Result</button>
             <button class="cancelBtn" style="width: 100%; padding: 8px;" onclick="cancelMatch('${m.id}')">❌ Cancel Match</button></div>`;
     }).join("") + `</div>`;
@@ -696,6 +726,32 @@ function cancelMatch(courtSlotId) {
     if(pairHistory.length > 0) pairHistory.shift();
     m.teamA = null; m.teamB = null; m.processed = true;
     renderAll(); saveState();
+}
+
+function shuffleLiveCourt(matchId) {
+    let m = matches.find(x => x.id === matchId);
+    if (!m || m.processed) return;
+    
+    let all = [...m.teamA.players, ...m.teamB.players];
+    for (let i = all.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [all[i], all[j]] = [all[j], all[i]];
+    }
+    m.teamA.players = [all[0], all[1]];
+    m.teamB.players = [all[2], all[3]];
+    renderAll();
+    saveState();
+}
+
+function swapLiveCourt(matchId) {
+    let m = matches.find(x => x.id === matchId);
+    if (!m || m.processed) return;
+    
+    let temp = m.teamA.players[1];
+    m.teamA.players[1] = m.teamB.players[0];
+    m.teamB.players[0] = temp;
+    renderAll();
+    saveState();
 }
 
 function storeScore(matchId, team, val) {
@@ -724,19 +780,16 @@ function confirmScoreMatch(id){
     m.scoreA = sA; m.scoreB = sB; m.winner = sA > sB ? 'A' : 'B'; m.processed = true;
     let time = Date.now();
 
-    // --- NEW LOGIC: SAVE TO MATCH HISTORY ---
-    // player.html expects teamA and teamB to be arrays of IDs.
     matchHistory.push({
         id: crypto.randomUUID(),
         court: m.court,
-        teamA: [...m.teamA.players], // Extracts just the array of IDs
+        teamA: [...m.teamA.players], 
         teamB: [...m.teamB.players],
         scoreA: m.scoreA,
         scoreB: m.scoreB,
         winner: m.winner,
         timestamp: time
     });
-    // ----------------------------------------
 
     [m.teamA.players, m.teamB.players].forEach((team, idx) => {
         let isTeamA = idx === 0; let won = (isTeamA && m.winner === 'A') || (!isTeamA && m.winner === 'B');
@@ -763,7 +816,6 @@ function renderNextUpQueue(){
 
     let waitingPlayers = players.filter(p => !activePlayerIds.has(p.id) && !p.isResting);
     
-    // Sort players by priority and wait time
     waitingPlayers.sort((a, b) => {
         if((a.priorityScore || 0) !== (b.priorityScore || 0)) return (a.priorityScore || 0) - (b.priorityScore || 0);
         return (a.waitingSince || 0) - (b.waitingSince || 0);
@@ -779,30 +831,22 @@ function renderNextUpQueue(){
     let queuePosition = 1;
 
     waitingPlayers.forEach(p => {
-        // Skip this player if they were already rendered as someone's partner
         if (processedIds.has(p.id)) return;
 
-        // Check if player is in a fixed team
         let duoTeam = fixedTeams.find(t => t.includes(p.id));
         let partnerId = duoTeam ? duoTeam.find(id => id !== p.id) : null;
-        
-        // Verify the partner is ALSO currently waiting in the queue
         let partner = partnerId ? waitingPlayers.find(x => x.id === partnerId) : null;
 
         if (partner && !processedIds.has(partner.id)) {
-            // Render as a combined Duo Badge (Purple background)
             let isLate = p.isLate || partner.isLate;
             queueHtml.push(
                 `<span class="queueBadge ${isLate ? 'lateBadge' : ''}" style="background: #6200ea;">` + 
                 `#${queuePosition} 🔗 ${p.name} (${p.games} gms) + ${partner.name} (${partner.games} gms)` + 
                 `</span>`
             );
-            
-            // Mark both players as processed so they aren't printed again
             processedIds.add(p.id);
             processedIds.add(partner.id);
         } else {
-            // Render as a Solo Badge (Standard Orange background)
             queueHtml.push(
                 `<span class="queueBadge ${p.isLate ? 'lateBadge' : ''}">` + 
                 `#${queuePosition} ${p.name} (${p.games} gms)` + 
@@ -811,7 +855,7 @@ function renderNextUpQueue(){
             processedIds.add(p.id);
         }
         
-        // Increment the display number
+        // Always increment by exactly 1 to keep the visual list sequential (1, 2, 3...)
         queuePosition++;
     });
 
@@ -889,19 +933,16 @@ function renderLeader(){
 /* ---------------- MOBILE SMART SORT ---------------- */
 function sort(k, event){
     const multiSortToggle = document.getElementById("multiSortToggle");
-    
-    // Multi-sort is triggered if the checkbox is checked OR the desktop shift key is pressed
     const isMultiSortActive = (multiSortToggle && multiSortToggle.checked) || (event && event.shiftKey);
 
     if (isMultiSortActive) {
         let existing = sortState.find(x => x.key === k);
         if (existing) {
-            existing.asc = !existing.asc; // Toggle order
+            existing.asc = !existing.asc;
         } else {
-            sortState.push({key: k, asc: false}); // Append to sort criteria
+            sortState.push({key: k, asc: false});
         }
     } else {
-        // Regular single column sort behavior
         if (sortState.length === 1 && sortState[0].key === k) {
             sortState[0].asc = !sortState[0].asc;
         } else {
@@ -914,20 +955,14 @@ function sort(k, event){
 function resetSystemOnly() {
     if(!confirm("Soft Reset: Keep your player roster, but wipe all stats, active courts, and match history?")) return;
     
-    // 1. Reset all player stats and queue times
     players.forEach(p => {
         p.wins = 0; p.losses = 0; p.games = 0; p.pointsScored = 0; p.pointsConceded = 0; p.pointDiff = 0;
         p.isResting = false; p.isLate = false; p.priorityScore = 0; p.waitingSince = Date.now();
     });
     
-    // 2. Wipe history
     pairHistory = [];
     matchHistory = [];
-    
-    // 3. NEW: Wipe the active matches/courts before rebuilding them
     matches = []; 
-    
-    // 4. Rebuild the empty courts and save
     updateCourtsSetup();
 }
 
