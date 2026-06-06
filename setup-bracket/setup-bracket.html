@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>KitchenSync - Smart Pickleball System(v6.5.2026.904)</title>
+<title>KitchenSync - Smart Pickleball System(v6.6.2026.2301)</title>
 
 <style>
 * { box-sizing: border-box; }
@@ -235,14 +235,11 @@ tr:nth-child(even) { background: #fafafa; }
 <div class="infoBox">
     <div style="font-weight: bold; margin-bottom: 8px; font-size: 16px;">🔄 System Logic & Features Overview:</div>
     <ul style="margin: 0; padding-left: 20px;">
-        <li>👤 <b>Player Profiles:</b> Click any player's name in the leaderboard to open their dynamic, individual performance sheet.</li>
+        <li>👤 <b>Player Profiles:</b> Click any player's name in the leaderboard to open their performance sheet.</li>
         <li>🤖 <b>Auto-Matchmaker:</b> Automatically generates matches based on priority (fewest games played & longest wait time). Intelligently mixes Solos and Fixed Duos.</li>
-        <li>🎱 <b>Dynamic Pools:</b> Players start in the ⚪ Neutral pool. Match winners advance to the 🏆 Winners pool, and losers drop to the 📉 Losers pool. Matchups stay segmented within these tiers.</li>
+        <li>🎱 <b>Dynamic Pools:</b> Match winners advance to the 🏆 Winners pool. Losers drop to the 📉 Losers pool, which gets pooled right alongside the ⚪ Neutral players for matchmaking.</li>
         <li>👥 <b>Fixed Duos:</b> Lock pairs together. They queue as a single unit, and pausing/resuming one instantly syncs their partner's state.</li>
-        <li>⏸️ <b>Status Management:</b> Players can be toggled to 🔴 Resting to skip matchmaking. Players on courts or queued must have their matches canceled before removal or resting.</li>
-        <li>⛓️ <b>Multi-Sort Leaderboard:</b> Check the Multi-Sort toggle (or hold Shift while clicking headers) to chain multiple sorting criteria (e.g., sort by Wins, then Point Diff).</li>
-        <li>📝 <b>Data Corrections:</b> Tap the <code>✏️</code> edit icon in the roster below to update names without losing stats. Use Bulk Add for fast setups.</li>
-        <li>🔄 <b>Flexible Resets:</b> Clear upcoming matches, reset pools to Neutral, perform a Soft Reset (keeps roster, wipes stats), or Hard Reset (wipes everything).</li>
+        <li>🔀 <b>Court Controls:</b> When 4 solo players occupy a court, you can shuffle or manually swap partners directly inside the active court card!</li>
     </ul>
 </div>
 
@@ -266,10 +263,8 @@ tr:nth-child(even) { background: #fafafa; }
     </div>
 
     <div id="players" style="margin-top: 15px;"></div>
-    <!-- 🔄 The reset button has been removed from here -->
 </div>
 
-<!-- 🏟️ Total Courts card has been moved ABOVE the Live Waiting Pools -->
 <div class="card">
     <div class="input-group">
         <span style="font-weight:bold; line-height: 38px;">Total Courts:</span>
@@ -279,7 +274,6 @@ tr:nth-child(even) { background: #fafafa; }
     </div>
 </div>
 
-<!-- 📊 Live Waiting Pools card has been moved BELOW the Total Courts -->
 <div class="card">
     <h3>📊 Live Waiting Pools (Ready for Matches)</h3>
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
@@ -297,7 +291,6 @@ tr:nth-child(even) { background: #fafafa; }
         </div>
     </div>
     
-    <!-- 🔄 The reset button has been relocated here inside the Live Pools card -->
     <button class="engineBtn" onclick="resetPoolsToNeutral()">🔄 Reset All Pools to Neutral</button>
 </div>
 
@@ -342,7 +335,6 @@ function generateID() {
     return 'id-' + Math.random().toString(36).substring(2, 11) + '-' + Date.now().toString(36);
 }
 
-// Unified state key for live linkage
 const STORAGE_KEY = "pickleball_shared_state_v1";
 
 function saveState(){
@@ -405,6 +397,24 @@ function updateCourtsSetup() {
     renderAll(); saveState();
 }
 
+/* ---------------- STATE SELF-HEALING REGULATION ---------------- */
+function syncDuoPools() {
+    let seenDuos = new Set();
+    players.forEach(p => {
+        if (p.duoId && !seenDuos.has(p.duoId)) {
+            seenDuos.add(p.duoId);
+            let pair = players.filter(x => x.duoId === p.duoId);
+            if (pair.length === 2) {
+                // If mid-game splits or staggered completions cause mismatched pools, Drop them to Neutral
+                if (pair[0].pool !== pair[1].pool) {
+                    pair[0].pool = 'neutral';
+                    pair[1].pool = 'neutral';
+                }
+            }
+        }
+    });
+}
+
 /* ---------------- PLAYER & DUO MANAGEMENT ---------------- */
 function addPlayer(){
     let name=document.getElementById("playerName").value.trim();
@@ -463,7 +473,12 @@ function createDuoTeam() {
 
     if(p1 && p2) {
         p1.duoId = dId; p2.duoId = dId;
-        p1.pool = 'neutral'; p2.pool = 'neutral';
+        
+        let getMatchPool = (p) => p.pool === 'winner' ? 'winner' : 'loser_neutral';
+        if (getMatchPool(p1) !== getMatchPool(p2)) {
+            p1.pool = 'neutral';
+            p2.pool = 'neutral';
+        }
         p1.isResting = false; p2.isResting = false;
     }
     autoMatchmaker(); renderAll(); saveState();
@@ -472,13 +487,20 @@ function createDuoTeam() {
 function dissolveDuo(duoId) {
     let teamMembers = players.filter(p => p.duoId === duoId);
 
-    let activeMatch = matches.find(m => !m.processed && m.teamA && m.teamB && (m.teamA.players.includes(teamMembers[0].id) || m.teamB.players.includes(teamMembers[0].id)));
-    if (activeMatch) {
-        alert("This duo is currently on a live court. Please cancel their match before splitting.");
-        return;
-    }
-    
-    tournamentMatches = tournamentMatches.filter(q => !(q.teamA.players.includes(teamMembers[0].id) || q.teamB.players.includes(teamMembers[0].id)));
+    matches.forEach(m => {
+        if (!m.processed && m.teamA && m.teamB) {
+            if (m.teamA.players.includes(teamMembers[0].id) || m.teamB.players.includes(teamMembers[0].id)) {
+                m.type = m.type.replace("Duo", "Solos");
+            }
+        }
+    });
+
+    tournamentMatches.forEach(q => {
+        if (q.teamA.players.includes(teamMembers[0].id) || q.teamB.players.includes(teamMembers[0].id)) {
+            q.type = q.type.replace("Duo", "Solos");
+        }
+    });
+
     teamMembers.forEach(p => p.duoId = null);
     autoMatchmaker(); renderAll(); saveState();
 }
@@ -502,14 +524,11 @@ function toggleRest(id) {
     let p = players.find(x => x.id === id); if(!p) return;
     
     let rawStat = getRawStatus(id);
-    
-    // Block resting if actively playing on a court
     if (rawStat === "court") {
         alert("Cannot change status for players currently on court! Cancel their match first.");
         return;
     }
 
-    // If they were in the queue, dissolve their upcoming match to let the autoMatchmaker recalculate
     if (rawStat === "queued") {
         tournamentMatches = tournamentMatches.filter(m => !(m.teamA.players.includes(id) || m.teamB.players.includes(id)));
     }
@@ -557,24 +576,14 @@ function getRawStatus(id) {
 
 function resetPoolsToNeutral() {
     if(!confirm("Reset everyone back to the Neutral Pool? Active matches and upcoming queues will be cleared.")) return;
-    
-    // 1. Reset all players back to the Neutral Pool
     players.forEach(p => p.pool = 'neutral');
-    
-    // 2. Clear the upcoming queue completely
     tournamentMatches = [];
-    
-    // 3. Clear all active courts (kick players off so they are eligible for the new queue)
     matches.forEach(m => {
         m.teamA = null; 
         m.teamB = null; 
         m.processed = true; 
     });
-    
-    // 4. Re-run the matchmaker and refresh the screen
-    autoMatchmaker(); 
-    renderAll(); 
-    saveState();
+    autoMatchmaker(); renderAll(); saveState();
 }
 
 /* ---------------- RESETS ---------------- */
@@ -599,24 +608,17 @@ function hardReset() {
 
 /* ---------------- ADVANCED HYBRID POOL MATCHMAKER ---------------- */
 function autoMatchmaker() {
+    syncDuoPools();
+
     let freePlayers = players.filter(p => !p.isResting && getRawStatus(p.id) === "waiting");
     
-    // 1. Shuffle the array first to establish a randomized base order
     freePlayers.sort(() => Math.random() - 0.5);
 
-    // 2. Apply the matchmaking sorting rules
     freePlayers.sort((a, b) => {
-        // Rule A: Priority Score (players with the fewest games played go first)
         if ((a.priorityScore || 0) !== (b.priorityScore || 0)) {
             return (a.priorityScore || 0) - (b.priorityScore || 0);
         }
-        
-        // Rule B: If both players have 0 priority (start of session / 0 games played), keep them randomized
-        if ((a.priorityScore || 0) === 0) {
-            return 0; 
-        }
-        
-        // Rule C: Once they've played games, queue them fairly by who has been waiting the longest
+        if ((a.priorityScore || 0) === 0) return 0; 
         return (a.waitingSince || 0) - (b.waitingSince || 0);
     });
 
@@ -627,7 +629,6 @@ function autoMatchmaker() {
         
         let poolLabel = poolType === 'winner' ? '🏆 Winners' : '📉 Losers/Neutral';
 
-        // 1. Group players into queue "entities" (Solos or Duos) to preserve exact line order
         let queueEntities = [];
         let seenDuos = new Set();
 
@@ -643,30 +644,23 @@ function autoMatchmaker() {
             }
         });
 
-        // 2. Build matches strictly by pulling from the front of the combined queue
         while (queueEntities.length > 0) {
             let matchPlayers = [];
             let matchEntities = [];
             let skippedEntities = [];
 
-            // Fill a 4-player match bucket
             while (matchPlayers.length < 4 && queueEntities.length > 0) {
                 let next = queueEntities.shift();
-                
                 if (matchPlayers.length + next.players.length <= 4) {
-                    // They fit on the court! Add them to the match.
                     matchEntities.push(next);
                     matchPlayers.push(...next.players);
                 } else {
-                    // Cannot fit a 2-player Duo into a 1-player slot. Skip them for now.
                     skippedEntities.push(next);
                 }
             }
 
-            // Put any skipped Duos back at the VERY FRONT of the line for the next court
             queueEntities = skippedEntities.concat(queueEntities);
 
-            // 3. If we successfully gathered 4 players, assign teams
             if (matchPlayers.length === 4) {
                 let duos = matchEntities.filter(e => e.type === 'duo');
                 let solos = matchEntities.filter(e => e.type === 'solo');
@@ -684,7 +678,6 @@ function autoMatchmaker() {
                         teamB: { players: [solos[0].players[0].id, solos[1].players[0].id] }
                     });
                 } else if (solos.length === 4) {
-                    // Scramble the 4 solos so teammates are randomized
                     let s = [...solos].sort(() => Math.random() - 0.5); 
                     tournamentMatches.push({
                         id: generateID(), type: `${poolLabel} Tier (Solos Scramble)`,
@@ -693,11 +686,31 @@ function autoMatchmaker() {
                     });
                 }
             } else {
-                // Not enough players to form a full 4-person match in this pool. Stop checking.
                 break; 
             }
         }
     });
+}
+
+/* ---------------- COURT SCRAMBLERS & OVERRIDES ---------------- */
+function reshuffleCourtSolos(matchId) {
+    let m = matches.find(x => x.id === matchId);
+    if (!m || m.processed) return;
+    let allPlayers = [...m.teamA.players, ...m.teamB.players];
+    allPlayers.sort(() => Math.random() - 0.5);
+    m.teamA.players = [allPlayers[0], allPlayers[1]];
+    m.teamB.players = [allPlayers[2], allPlayers[3]];
+    renderAll(); saveState();
+}
+
+function swapCourtPartners(matchId) {
+    let m = matches.find(x => x.id === matchId);
+    if (!m || m.processed) return;
+    let p1 = m.teamA.players[1];
+    let p2 = m.teamB.players[0];
+    m.teamA.players[1] = p2;
+    m.teamB.players[0] = p1;
+    renderAll(); saveState();
 }
 
 /* ---------------- COURT CYCLES ---------------- */
@@ -738,14 +751,8 @@ function confirmScoreMatch(id){
     let time = Date.now();
 
     matchHistory.push({
-        id: m.id,
-        court: m.court,
-        teamA: [...m.teamA.players],
-        teamB: [...m.teamB.players],
-        scoreA: sA,
-        scoreB: sB,
-        winner: m.winner,
-        type: m.type
+        id: m.id, court: m.court, teamA: [...m.teamA.players], teamB: [...m.teamB.players],
+        scoreA: sA, scoreB: sB, winner: m.winner, type: m.type
     });
 
     winTeam.forEach(pId => { let p = players.find(x => x.id === pId); if(p) p.pool = 'winner'; });
@@ -795,9 +802,7 @@ function renderPlayers(){
                 <div class="playerBtn ${p.isResting ? 'paused' : ''}" style="display:inline-block;">
                     ${displayLabel} ${p.isResting ? '(Paused)' : ''}
                 </div>
-                ${edit1Btn}
-                ${edit2Btn}
-                ${splitBtn}
+                ${edit1Btn} ${edit2Btn} ${splitBtn}
             </span>`;
         } else {
             html += `
@@ -859,9 +864,26 @@ function renderCourts(){
         let pB0 = players.find(p=>p.id===m.teamB.players[0])?.name || "??";
         let pB1 = players.find(p=>p.id===m.teamB.players[1])?.name || "??";
 
+        let allSolos = true;
+        m.teamA.players.concat(m.teamB.players).forEach(pId => {
+            let pl = players.find(x => x.id === pId);
+            if(pl && pl.duoId) allSolos = false;
+        });
+
+        let overrideControls = "";
+        if (allSolos) {
+            overrideControls = `
+                <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+                    <button onclick="reshuffleCourtSolos('${m.id}')" style="flex:1; padding: 5px; font-size: 11px; background:#e1f5fe; color:#0288d1; border:1px solid #b3e5fc;">🔀 Shuffle Solos</button>
+                    <button onclick="swapCourtPartners('${m.id}')" style="flex:1; padding: 5px; font-size: 11px; background:#efebe9; color:#5d4037; border:1px solid #d7ccc8;">🔄 Swap Partners</button>
+                </div>
+            `;
+        }
+
         return `<div class="court"><b>Court ${m.court}</b> <span style="float:right; font-weight:bold; font-size:11px; color:#ff9800;">${m.type}</span><hr>
             <div class="score-row"><div>👥 <strong>${pA0} + ${pA1}</strong></div><div><input type="number" class="scoreInput" id="inputA_${m.id}" value="${m.scoreA}" onchange="storeScore('${m.id}', 'A', this.value)"></div></div><hr>
             <div class="score-row"><div>👥 <strong>${pB0} + ${pB1}</strong></div><div><input type="number" class="scoreInput" id="inputB_${m.id}" value="${m.scoreB}" onchange="storeScore('${m.id}', 'B', this.value)"></div></div>
+            ${overrideControls}
             <button class="actionBtn" style="width: 100%; padding: 12px; margin-bottom: 8px;" onclick="confirmScoreMatch('${m.id}')">Confirm Score</button>
             <button class="cancelBtn" style="width: 100%; padding: 8px;" onclick="cancelMatch('${m.id}')">❌ Cancel Match</button></div>`;
     }).join("") + `</div>`;
@@ -962,7 +984,7 @@ function renderLeader(){
     }).join("");
 }
 
-function renderAll() { renderPlayers(); renderPoolsDashboard(); renderCourts(); renderNextUpQueue(); renderLeader(); }
+function renderAll() { syncDuoPools(); renderPlayers(); renderPoolsDashboard(); renderCourts(); renderNextUpQueue(); renderLeader(); }
 </script>
 
 </body>
